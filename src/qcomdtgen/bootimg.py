@@ -22,20 +22,35 @@ _DEFAULT_PAGE_SIZE = 4096
 #: Enough for either header, including vendor_boot's 2048 byte cmdline.
 _HEADER_READ_SIZE = 4096
 
-# boot.img, all versions: header_version at 40.  v0 - v2 additionally declare
-# the page size at 36 and split the cmdline in two (512 bytes at 64, another
-# 1024 at 608); v3 merged them into one 1536 byte field at 44.
+# Offsets below follow the packed structs in AOSP's bootimg.h
+# (system/tools/mkbootimg/include/bootimg/bootimg.h).
+#
+# boot_img_hdr_v0 - v2, the fields up to extra_cmdline being identical:
+#     0 magic[8]        8 kernel_size     12 kernel_addr    16 ramdisk_size
+#    20 ramdisk_addr   24 second_size     28 second_addr    32 tags_addr
+#    36 page_size      40 header_version  44 os_version     48 name[16]
+#    64 cmdline[512]  576 id[8]          608 extra_cmdline[1024]
+# v1 and v2 only append fields after that, so nothing here moves.
 _BOOT_HEADER_VERSION_OFFSET = 40
 _BOOT_PAGE_SIZE_OFFSET = 36
-_BOOT_CMDLINE = (64, 512)
-_BOOT_EXTRA_CMDLINE = (608, 1024)
-_BOOT_V3_CMDLINE = (44, 1536)
+_BOOT_CMDLINE = (64, 512)  # BOOT_ARGS_SIZE
+_BOOT_EXTRA_CMDLINE = (608, 1024)  # BOOT_EXTRA_ARGS_SIZE
+#
+# boot_img_hdr_v3, which dropped page_size and merged the two cmdline fields:
+#     0 magic[8]        8 kernel_size     12 ramdisk_size   16 os_version
+#    20 header_size    24 reserved[4]     40 header_version 44 cmdline[1536]
+# v4 only appends signature_size.  header_version keeping offset 40 across
+# both layouts is what lets the version be read before the layout is known.
+_BOOT_V3_CMDLINE = (44, 512 + 1024)
 
-# vendor_boot.img: magic, then header_version at 8, page size at 12 and a
-# single 2048 byte cmdline at 28.
+# vendor_boot_img_hdr_v3:
+#     0 magic[8]        8 header_version  12 page_size      16 kernel_addr
+#    20 ramdisk_addr   24 vendor_ramdisk_size               28 cmdline[2048]
+#  2076 tags_addr    2080 name[16]      2096 header_size   2100 dtb_size
+# v4 only appends the ramdisk table and bootconfig sizes.
 _VENDOR_HEADER_VERSION_OFFSET = 8
 _VENDOR_PAGE_SIZE_OFFSET = 12
-_VENDOR_CMDLINE = (28, 2048)
+_VENDOR_CMDLINE = (28, 2048)  # VENDOR_BOOT_ARGS_SIZE
 
 #: Where dump tools leave the images, relative to the dump root.
 _IMAGE_DIRS: List[str] = ["", "images", "IMAGES", "boot", "firmware"]
