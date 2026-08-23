@@ -132,3 +132,6 @@ tests/
 ```bash
 python -m pytest
 ```
+
+The version lives only in `src/qcomdtgen/__init__.py`; `pyproject.toml` reads it
+from there (`[tool.setuptools.dynamic]`), so a release is a one-line change.

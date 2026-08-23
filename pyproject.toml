@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qcomdtgen"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Generate LineageOS device trees from a Qualcomm Android dump"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -28,6 +28,9 @@ qcomdtgen = "qcomdtgen.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Sigmund05/android_device_tree_generator"
+
+[tool.setuptools.dynamic]
+version = { attr = "qcomdtgen.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
