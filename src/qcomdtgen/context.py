@@ -119,14 +119,14 @@ def _partition_block(dump: AndroidDump) -> str:
     lines = [
         "# Dynamic partitions",
         "BOARD_SUPER_PARTITION_SIZE := 0 # TODO: read from the stock super.img",
-        f"BOARD_{dump.vendor.upper()}_DYNAMIC_PARTITIONS_PARTITION_LIST := " + " ".join(groups),
-        f"BOARD_{dump.vendor.upper()}_DYNAMIC_PARTITIONS_SIZE := 0 # TODO",
-        f"BOARD_SUPER_PARTITION_GROUPS := {dump.vendor}_dynamic_partitions",
+        f"BOARD_{dump.manufacturer_dir.upper()}_DYNAMIC_PARTITIONS_PARTITION_LIST := " + " ".join(groups),
+        f"BOARD_{dump.manufacturer_dir.upper()}_DYNAMIC_PARTITIONS_SIZE := 0 # TODO",
+        f"BOARD_SUPER_PARTITION_GROUPS := {dump.manufacturer_dir}_dynamic_partitions",
     ]
     return "\n".join(lines)
 
 
-def _vendor_blob_blocks(with_blobs: bool, vendor: str, device: str) -> Dict[str, str]:
+def _vendor_blob_blocks(with_blobs: bool, manufacturer: str, device: str) -> Dict[str, str]:
     """Lines that only make sense once blobs have been extracted."""
     if not with_blobs:
         return {"boardconfig_vendor_block": "", "device_vendor_block": ""}
@@ -134,13 +134,13 @@ def _vendor_blob_blocks(with_blobs: bool, vendor: str, device: str) -> Dict[str,
         "boardconfig_vendor_block": "\n".join(
             [
                 "# Inherit the proprietary files",
-                f"include vendor/{vendor}/{device}/BoardConfigVendor.mk",
+                f"include vendor/{manufacturer}/{device}/BoardConfigVendor.mk",
             ]
         ),
         "device_vendor_block": "\n".join(
             [
                 "# Inherit from the proprietary files makefile.",
-                f"$(call inherit-product, vendor/{vendor}/{device}/{device}-vendor.mk)",
+                f"$(call inherit-product, vendor/{manufacturer}/{device}/{device}-vendor.mk)",
             ]
         ),
     }
@@ -149,7 +149,7 @@ def _vendor_blob_blocks(with_blobs: bool, vendor: str, device: str) -> Dict[str,
 def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     """Every placeholder the templates may reference."""
     device = dump.device
-    vendor = dump.vendor
+    manufacturer = dump.manufacturer_dir
     api_level = dump.api_level
     shipping_api = _int_prop(dump, "ro.product.first_api_level") or api_level
     # The vendor image's own API level, which can lag the system one.
@@ -162,8 +162,8 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
 
     context: Dict[str, str] = {
         "device": device,
-        "vendor": vendor,
-        "manufacturer": dump.manufacturer,
+        "manufacturer": manufacturer,
+        "product_manufacturer": dump.manufacturer,
         "brand": dump.brand,
         "model": dump.model,
         "platform": dump.platform,
@@ -201,8 +201,8 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         # optional blocks
         "ota_block": _ota_block(dump),
         "partition_block": _partition_block(dump),
-        "kernel_source": f"kernel/{vendor}/{dump.platform}",
+        "kernel_source": f"kernel/{manufacturer}/{dump.platform}",
         "boot_header_version": str(_int_prop(dump, "ro.boot.hardware.header_version") or 4),
     }
-    context.update(_vendor_blob_blocks(with_blobs, vendor, device))
+    context.update(_vendor_blob_blocks(with_blobs, manufacturer, device))
     return context

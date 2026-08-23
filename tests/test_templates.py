@@ -36,7 +36,10 @@ def test_product_makefiles(context):
 
     device_mk = render("lineage_device.mk", context)
     assert "PRODUCT_NAME := lineage_venus" in device_mk
+    # the tree directory is lowercase, PRODUCT_MANUFACTURER keeps the prop's case
     assert "PRODUCT_MANUFACTURER := Xiaomi" in device_mk
+    assert "device/xiaomi/venus/device.mk" in device_mk
+    assert "PRODUCT_GMS_CLIENTID_BASE := android-xiaomi" in device_mk
     assert "PRODUCT_MODEL := Mi 11" in device_mk
 
 

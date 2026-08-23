@@ -63,7 +63,7 @@ class DeviceTreeGenerator:
         return (
             Path(self.options.android_top).expanduser()
             / DEVICE_SUBDIR
-            / self.dump.vendor
+            / self.dump.manufacturer_dir
             / self.dump.device
         ).resolve()
 

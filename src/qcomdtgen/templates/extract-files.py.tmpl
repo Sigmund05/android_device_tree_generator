@@ -7,12 +7,12 @@ from extract_utils.main import (
 )
 
 namespace_imports = [
-    'device/{{vendor}}/{{device}}',
+    'device/{{manufacturer}}/{{device}}',
 ]
 
 module = ExtractUtilsModule(
     '{{device}}',
-    '{{vendor}}',
+    '{{manufacturer}}',
     namespace_imports=namespace_imports,
 )
 

@@ -9,7 +9,7 @@ def test_detects_partitions_and_props(dump_dir):
     assert set(dump.partitions) >= {"system", "vendor", "product"}
     assert dump.device == "venus"
     assert dump.manufacturer == "Xiaomi"
-    assert dump.vendor == "xiaomi"
+    assert dump.manufacturer_dir == "xiaomi"
     assert dump.model == "Mi 11"
     assert dump.platform == "lahaina"
     assert dump.arch == "arm64"

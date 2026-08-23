@@ -206,8 +206,8 @@ class AndroidDump:
         return self.get_product_prop("model", default="unknown")
 
     @property
-    def vendor(self) -> str:
-        """Vendor directory name used by the device tree (lowercase brand)."""
+    def manufacturer_dir(self) -> str:
+        """Manufacturer as the device tree spells it: lowercase, no spaces."""
         return (self.manufacturer or self.brand).lower().replace(" ", "_")
 
     @property

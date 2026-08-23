@@ -1,14 +1,14 @@
 {{license}}
 
 # Inherit from {{device}} device
-$(call inherit-product, device/{{vendor}}/{{device}}/device.mk)
+$(call inherit-product, device/{{manufacturer}}/{{device}}/device.mk)
 
 # Inherit some common Lineage stuff
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
 PRODUCT_NAME := lineage_{{device}}
 PRODUCT_DEVICE := {{device}}
-PRODUCT_MANUFACTURER := {{manufacturer}}
+PRODUCT_MANUFACTURER := {{product_manufacturer}}
 PRODUCT_BRAND := {{brand}}
 PRODUCT_MODEL := {{model}}
 
@@ -18,4 +18,4 @@ PRODUCT_BUILD_PROP_OVERRIDES += \
     DeviceProduct={{device_product}} \
     SystemName={{system_name}}
 
-PRODUCT_GMS_CLIENTID_BASE := android-{{vendor}}
+PRODUCT_GMS_CLIENTID_BASE := android-{{manufacturer}}
