@@ -35,16 +35,6 @@ _ARM32: Dict[str, str] = {
     "cpu_variant_runtime": "cortex-a75",
 }
 
-#: Release configuration used by the lunch combos, per shipped API level.
-#: LineageOS 22 (Android 15) onwards spells the release out in the combo.
-_RELEASE_CONFIGS: Tuple[Tuple[int, str], ...] = (
-    (36, "bp2a"),
-    (35, "bp1a"),
-)
-
-_BUILD_TYPES = ("user", "userdebug", "eng")
-
-
 def _density_bucket(density: Optional[int]) -> str:
     if not density:
         return "xxhdpi"
@@ -58,21 +48,6 @@ def _int_prop(dump: AndroidDump, *keys: str) -> Optional[int]:
 
 def _bool_prop(dump: AndroidDump, *keys: str) -> bool:
     return dump.get_prop(*keys).lower() in ("true", "1", "yes")
-
-
-def _release_config(api_level: Optional[int]) -> str:
-    for level, name in _RELEASE_CONFIGS:
-        if api_level and api_level >= level:
-            return name
-    return ""
-
-
-def _lunch_choices(device: str, api_level: Optional[int]) -> str:
-    release = _release_config(api_level)
-    infix = f"-{release}" if release else ""
-    return " \\\n".join(
-        f"    lineage_{device}{infix}-{build_type}" for build_type in _BUILD_TYPES
-    )
 
 
 def _arch_block(dump: AndroidDump) -> str:
@@ -208,7 +183,6 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         "android_version": dump.android_version,
         "api_level": str(api_level or ""),
         "shipping_api_level": str(shipping_api or ""),
-        "lunch_choices": _lunch_choices(device, api_level),
         "density": _density_bucket(_int_prop(dump, "ro.sf.lcd_density")),
         "build_description": dump.get_prop(
             "ro.build.description", default=dump.fingerprint

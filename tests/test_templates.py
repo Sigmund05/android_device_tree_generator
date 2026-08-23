@@ -31,7 +31,8 @@ def test_board_config(context):
 def test_product_makefiles(context):
     products = render("AndroidProducts.mk", context)
     assert "$(LOCAL_DIR)/lineage_venus.mk" in products
-    assert "lineage_venus-userdebug" in products
+    # COMMON_LUNCH_CHOICES has been broken since Android 14 QPR2
+    assert "COMMON_LUNCH_CHOICES" not in products
 
     device_mk = render("lineage_device.mk", context)
     assert "PRODUCT_NAME := lineage_venus" in device_mk
