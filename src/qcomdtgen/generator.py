@@ -63,13 +63,13 @@ class DeviceTreeGenerator:
 
     @cached_property
     def device_dir(self) -> Path:
-        """``ANDROID_TOP/device/<manufacturer>/<device>``."""
-        return (
-            Path(self.options.android_top).expanduser()
-            / DEVICE_SUBDIR
-            / self.dump.manufacturer_dir
-            / self.dump.device
-        ).resolve()
+        """``ANDROID_TOP/device/<manufacturer>/<device>``.
+
+        Only ANDROID_TOP is resolved: resolving the whole path would follow a
+        symlinked device directory, and _prepare_output refuses those.
+        """
+        android_top = Path(self.options.android_top).expanduser().resolve()
+        return android_top / DEVICE_SUBDIR / self.dump.manufacturer_dir / self.dump.device
 
     def run(self) -> GeneratorResult:
         self._prepare_output()
@@ -99,6 +99,10 @@ class DeviceTreeGenerator:
 
     def _prepare_output(self) -> None:
         device_dir = self.device_dir
+        if device_dir.is_symlink():
+            # is_dir() would follow it and the run would write somewhere the
+            # caller did not name.
+            raise OutputError(f"output path is a symlink: {device_dir}")
         if device_dir.exists():
             if not device_dir.is_dir():
                 raise OutputError(f"output path is not a directory: {device_dir}")

@@ -111,8 +111,8 @@ are written executable.
 Blobs are listed in `extract-utils` format: paths relative to the partition root,
 prefixed with the partition name for everything but `system`, grouped into sections
 (Audio, Camera, Display, GPS, …) and sorted. System-side partitions only contribute
-a narrow allow list (Qualcomm libraries, permissions, apps) because the rest is
-built from source.
+a narrow allow list (Qualcomm libraries, permissions and apps, matched case
+insensitively) because the rest is built from source.
 
 ## Project layout
 
@@ -135,6 +135,9 @@ tests/
 ```bash
 python -m pytest
 ```
+
+CI runs the suite on python 3.9 - 3.13 and generates a tree from a synthetic
+dump on every push.
 
 The version lives only in `src/qcomdtgen/__init__.py`; `pyproject.toml` reads it
 from there (`[tool.setuptools.dynamic]`), so a release is a one-line change.

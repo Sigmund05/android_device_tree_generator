@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Test
+        run: python -m pytest -q
+      - name: Generate a tree from a synthetic dump
+        run: |
+          mkdir -p /tmp/dump/system/system /tmp/dump/vendor
+          printf 'ro.product.system.manufacturer=Xiaomi\n' >> /tmp/dump/system/system/build.prop
+          printf 'ro.product.system.device=venus\n' >> /tmp/dump/system/system/build.prop
+          printf 'ro.product.cpu.abilist=arm64-v8a,armeabi-v7a\n' >> /tmp/dump/system/system/build.prop
+          printf 'ro.board.platform=lahaina\n' > /tmp/dump/vendor/build.prop
+          qcomdtgen /tmp/dump -o /tmp/android
+          test -x /tmp/android/device/xiaomi/venus/extract-files.py

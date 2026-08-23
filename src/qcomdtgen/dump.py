@@ -9,6 +9,7 @@ in a handful of well known places instead of a single fixed path.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional
@@ -45,6 +46,22 @@ _PARTITION_MARKERS: List[str] = [
 
 #: Where a partition's ``build.prop`` may live, relative to the partition root.
 _BUILD_PROP_NAMES: List[str] = ["build.prop", "etc/build.prop"]
+
+#: Anything outside this set is folded away: these names become directories in
+#: the Android tree and parts of make variable names, and "TCL Communication
+#: Ltd." must not turn into a path ending in a dot or BOARD_...LTD._SIZE.
+_UNSAFE_NAME_CHARS = re.compile(r"[^a-z0-9_]+")
+
+#: Qualcomm SoC names: a family prefix followed by digits, plus the platform
+#: code names that do not follow it.  Matching bare "sm" would call old
+#: Exynos boards such as smdk4210 Qualcomm.
+_QUALCOMM_SOC = re.compile(r"\b(?:sm|sdm|msm|apq|qcs|qcm|qsd)\d|qcom|qualcomm|kona|lito")
+
+
+def sanitize_name(name: str, default: str = "unknown") -> str:
+    """Fold a property value into something usable as a directory name."""
+    cleaned = _UNSAFE_NAME_CHARS.sub("_", name.lower()).strip("_")
+    return cleaned or default
 
 
 def _read_prop_file(path: Path) -> Dict[str, str]:
@@ -182,10 +199,28 @@ class AndroidDump:
                 return value
         return default
 
+    def get_partition_prop(self, key: str, default: str = "") -> str:
+        """Read ``key`` from each partition in turn, system side first.
+
+        The merged table lets vendor and odm win, which is what the runtime
+        does for the vendor specific keys - but not what a device tree wants
+        from ``ro.product.*``, where the system value is the canonical one.
+        """
+        for name in PARTITIONS:
+            partition = self.partitions.get(name)
+            if partition is None:
+                continue
+            value = partition.props.get(key)
+            if value:
+                return value
+        return default
+
     def get_product_prop(self, suffix: str, default: str = "") -> str:
         """Look up ``ro.product.<suffix>`` across all its partition variants."""
-        keys = [f"ro.product.{suffix}"]
-        keys += [f"ro.product.{part}.{suffix}" for part in PARTITIONS]
+        unprefixed = self.get_partition_prop(f"ro.product.{suffix}")
+        if unprefixed:
+            return unprefixed
+        keys = [f"ro.product.{part}.{suffix}" for part in PARTITIONS]
         keys += [f"ro.{part}.product.{suffix}" for part in PARTITIONS]
         return self.get_prop(*keys, default=default)
 
@@ -193,9 +228,9 @@ class AndroidDump:
 
     @property
     def device(self) -> str:
-        return self.get_product_prop("device") or self.get_prop(
-            "ro.build.product", default="unknown"
-        )
+        """The codename, as the tree directory and PRODUCT_DEVICE spell it."""
+        codename = self.get_product_prop("device") or self.get_prop("ro.build.product")
+        return sanitize_name(codename)
 
     @property
     def manufacturer(self) -> str:
@@ -217,7 +252,7 @@ class AndroidDump:
     @property
     def manufacturer_dir(self) -> str:
         """Manufacturer as the device tree spells it: lowercase, no spaces."""
-        return self.manufacturer.lower().replace(" ", "_")
+        return sanitize_name(self.manufacturer)
 
     @property
     def platform(self) -> str:
@@ -238,7 +273,7 @@ class AndroidDump:
                 self.get_prop("ro.hardware"),
             ]
         ).lower()
-        return any(tag in soc for tag in ("qcom", "qualcomm", "msm", "sdm", "sm", "kona", "lito"))
+        return _QUALCOMM_SOC.search(soc) is not None
 
     @property
     def abilist(self) -> str:

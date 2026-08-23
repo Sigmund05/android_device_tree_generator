@@ -89,3 +89,60 @@ def test_manufacturer_falls_back_to_the_brand(tmp_path):
     dump = AndroidDump(root)
     assert dump.manufacturer == "FCNT"
     assert dump.manufacturer_dir == "fcnt"
+
+
+def test_manufacturer_punctuation_is_folded_away(tmp_path):
+    """"TCL Communication Ltd." must not become a path ending in a dot."""
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=foo\n"
+        "ro.product.manufacturer=TCL Communication Ltd.\n"
+        "ro.product.cpu.abilist=arm64-v8a\n"
+    )
+    assert AndroidDump(root).manufacturer_dir == "tcl_communication_ltd"
+
+
+def test_device_codename_is_sanitized(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=../escape\nro.product.cpu.abilist=arm64-v8a\n"
+    )
+    assert AndroidDump(root).device == "escape"
+
+
+@pytest.mark.parametrize(
+    "soc, expected",
+    [
+        ("sm8450", True),
+        ("sdm845", True),
+        ("msm8998", True),
+        ("lahaina", False),  # named by ro.hardware=qcom instead
+        ("smdk4210", False),  # an old Exynos board, not Qualcomm
+        ("mt6893", False),
+        ("exynos2200", False),
+    ],
+)
+def test_qualcomm_detection(tmp_path, soc, expected):
+    root = tmp_path / soc
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        f"ro.product.device=foo\nro.board.platform={soc}\nro.product.cpu.abilist=arm64-v8a\n"
+    )
+    assert AndroidDump(root).is_qualcomm is expected
+
+
+def test_system_wins_over_vendor_for_product_props(tmp_path):
+    """The merged table lets vendor win; ro.product.* must not follow it."""
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "vendor").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=marketingname\nro.product.cpu.abilist=arm64-v8a\n"
+    )
+    (root / "vendor" / "build.prop").write_text("ro.product.device=internalname\n")
+    dump = AndroidDump(root)
+    assert dump.device == "marketingname"
+    # the merged table still prefers vendor for the vendor specific keys
+    assert dump.props["ro.product.device"] == "internalname"

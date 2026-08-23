@@ -259,3 +259,42 @@ def test_recovery_dtbo_follows_the_header(dump_dir):
     write_boot_v2(dump_dir / "boot.img", recovery_dtbo=8192)
     rendered = render("BoardConfig.mk", build_context(AndroidDump(dump_dir)))
     assert "BOARD_INCLUDE_RECOVERY_DTBO := true" in rendered
+
+
+def test_a_kernel_address_below_the_offset_is_not_a_base(tmp_path):
+    """0x1000 - 0x8000 would be a negative BOARD_KERNEL_BASE."""
+    image = read_boot_image(write_boot_v2(tmp_path / "boot.img", kernel=0x00001000))
+    assert not image.has_load_addresses
+    assert image.base_address is None
+
+
+def test_an_address_below_the_base_has_no_offset(tmp_path):
+    image = read_boot_image(
+        write_boot_v2(tmp_path / "boot.img", kernel=0x10008000, ramdisk=0x00001000)
+    )
+    assert image.offset_of(image.ramdisk_address) is None
+
+
+def test_page_size_falls_back_to_vendor_boot(dump_dir):
+    """Some dumps ship vendor_boot without boot.img."""
+    header = bytearray(4096)
+    header[0:8] = b"VNDRBOOT"
+    struct.pack_into("<I", header, 8, 4)
+    struct.pack_into("<I", header, 12, 2048)
+    (dump_dir / "vendor_boot.img").write_bytes(bytes(header))
+    rendered = render("BoardConfig.mk", build_context(AndroidDump(dump_dir)))
+    assert "BOARD_KERNEL_PAGESIZE := 2048" in rendered
+    assert "BOARD_FLASH_BLOCK_SIZE := 131072" in rendered
+
+
+def test_cmdline_make_characters_are_escaped(dump_dir):
+    header = bytearray(4096)
+    header[0:8] = b"VNDRBOOT"
+    struct.pack_into("<I", header, 8, 4)
+    struct.pack_into("<I", header, 12, 4096)
+    cmdline = b"foo=$bar baz=a#b"
+    header[28 : 28 + len(cmdline)] = cmdline
+    (dump_dir / "vendor_boot.img").write_bytes(bytes(header))
+    rendered = render("BoardConfig.mk", build_context(AndroidDump(dump_dir)))
+    assert "foo=$$bar" in rendered
+    assert r"baz=a\#b" in rendered

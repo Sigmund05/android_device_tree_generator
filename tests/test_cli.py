@@ -160,3 +160,15 @@ def test_help_keeps_the_examples_readable(capsys):
     assert exit_info.value.code == 0
     help_text = capsys.readouterr().out
     assert "qcomdtgen ~/dumps/venus -o ~/android/lineage  write into an Android tree" in help_text
+
+
+def test_a_symlinked_output_directory_is_refused(dump_dir, tmp_path, capsys):
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    link_parent = tmp_path / "android" / "device" / "xiaomi"
+    link_parent.mkdir(parents=True)
+    (link_parent / "venus").symlink_to(real, target_is_directory=True)
+
+    assert main([str(dump_dir), "-o", str(tmp_path / "android")]) == 1
+    assert "symlink" in capsys.readouterr().err
+    assert not any(real.iterdir())

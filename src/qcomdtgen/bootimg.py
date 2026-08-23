@@ -101,8 +101,13 @@ class BootImage:
 
     @property
     def has_load_addresses(self) -> bool:
-        """boot v3 dropped them; they live in vendor_boot from then on."""
-        return self.kernel_address != 0
+        """boot v3 dropped them; they live in vendor_boot from then on.
+
+        A kernel address below the offset mkbootimg puts it at cannot have
+        come from a base plus that offset, so it is treated as absent rather
+        than turned into a negative base.
+        """
+        return self.kernel_address >= KERNEL_OFFSET
 
     @property
     def base_address(self) -> Optional[int]:
@@ -114,7 +119,7 @@ class BootImage:
     def offset_of(self, address: int) -> Optional[int]:
         """Turn an absolute load address back into an offset from the base."""
         base = self.base_address
-        if base is None or address == 0:
+        if base is None or address == 0 or address < base:
             return None
         return address - base
 

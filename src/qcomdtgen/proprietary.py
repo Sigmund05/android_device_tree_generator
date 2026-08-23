@@ -57,7 +57,10 @@ _EXCLUDE_PATTERNS: Tuple[str, ...] = (
 )
 
 #: System blobs are mostly built from source, so only a narrow allow list is
-#: pulled from the system-side partitions.
+#: pulled from the system-side partitions.  Matched against the lowercased
+#: path, so a pattern covers QtiFoo and qtifoo alike.  Apps are matched on the
+#: vendor marker in their name: "app/*" would drag in every AOSP app, all of
+#: which the tree builds from source.
 _SYSTEM_INCLUDE_PATTERNS: Tuple[str, ...] = (
     "bin/*",
     "lib/lib*qti*.so",
@@ -73,8 +76,12 @@ _SYSTEM_INCLUDE_PATTERNS: Tuple[str, ...] = (
     "etc/permissions/*com.qti*.xml",
     "framework/*qti*.jar",
     "framework/*qcom*.jar",
-    "priv-app/*",
-    "app/*",
+    "app/*qti*",
+    "app/*qcom*",
+    "app/*qualcomm*",
+    "priv-app/*qti*",
+    "priv-app/*qcom*",
+    "priv-app/*qualcomm*",
 )
 
 _SYSTEM_SIDE_PARTITIONS: Tuple[str, ...] = ("system", "system_ext", "product")
@@ -171,7 +178,9 @@ def collect_blobs(dump: AndroidDump) -> BlobList:
             relative = relative_path.as_posix()
             if not _is_blob(relative):
                 continue
-            if system_side and not _matches_any(relative, _SYSTEM_INCLUDE_PATTERNS):
+            if system_side and not _matches_any(
+                relative.lower(), _SYSTEM_INCLUDE_PATTERNS
+            ):
                 continue
             entry = _entry_path(partition, relative)
             sections[_section_for(entry)].append(entry)

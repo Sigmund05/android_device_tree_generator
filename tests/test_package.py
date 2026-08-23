@@ -18,3 +18,10 @@ def test_installed_metadata_matches_the_module():
     except PackageNotFoundError:  # not installed, e.g. a bare source checkout
         pytest.skip("qcomdtgen is not installed")
     assert metadata_version == qcomdtgen.__version__
+
+
+def test_the_package_is_marked_as_typed():
+    """PEP 561: without py.typed, callers get no type information."""
+    from importlib.resources import files
+
+    assert files("qcomdtgen").joinpath("py.typed").is_file()

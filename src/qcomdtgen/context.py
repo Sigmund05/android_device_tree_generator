@@ -2,21 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from qcomdtgen.bootimg import KERNEL_OFFSET
 from qcomdtgen.dump import AndroidDump
-
-#: aapt density buckets, used to pick PRODUCT_AAPT_PREF_CONFIG.
-_DENSITY_BUCKETS: Tuple[Tuple[int, str], ...] = (
-    (120, "ldpi"),
-    (160, "mdpi"),
-    (213, "tvdpi"),
-    (240, "hdpi"),
-    (320, "xhdpi"),
-    (480, "xxhdpi"),
-    (640, "xxxhdpi"),
-)
 
 #: Primary architecture of every supported device; qcomdtgen is 64-bit ARM only.
 _ARM64: Dict[str, str] = {
@@ -35,12 +24,6 @@ _ARM32: Dict[str, str] = {
     "cpu_variant": "generic",
     "cpu_variant_runtime": "cortex-a75",
 }
-
-def _density_bucket(density: Optional[int]) -> str:
-    if not density:
-        return "xxhdpi"
-    return min(_DENSITY_BUCKETS, key=lambda bucket: abs(bucket[0] - density))[1]
-
 
 def _int_prop(dump: AndroidDump, *keys: str) -> Optional[int]:
     value = dump.get_prop(*keys)
@@ -149,11 +132,16 @@ def _vendor_blob_blocks(with_blobs: bool, manufacturer: str, device: str) -> Dic
     }
 
 
+def _make_safe(value: str) -> str:
+    """Escape what make would otherwise eat: expansion and comments."""
+    return value.replace("$", "$$").replace("#", "\\#")
+
+
 def _cmdline_block(cmdline: str) -> str:
     """BOARD_KERNEL_CMDLINE, one argument per continuation line."""
     if not cmdline:
         return "BOARD_KERNEL_CMDLINE := # TODO: no cmdline in the dump's boot images"
-    arguments = cmdline.split()
+    arguments = [_make_safe(argument) for argument in cmdline.split()]
     if len(arguments) == 1:
         return f"BOARD_KERNEL_CMDLINE := {arguments[0]}"
     body = " \\\n".join(f"    {argument}" for argument in arguments)
@@ -201,7 +189,9 @@ def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
     a boot.img leaves a TODO behind instead of a guess.
     """
     boot = dump.boot_image
-    page_size = boot.page_size if boot else 4096
+    # vendor_boot declares its own page size, and some dumps ship only that.
+    page_sized = boot or dump.vendor_boot_image
+    page_size = page_sized.page_size if page_sized else 4096
     return {
         "kernel_cmdline_block": _cmdline_block(dump.kernel_cmdline),
         "kernel_address_block": _kernel_address_block(dump),
@@ -236,11 +226,9 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         "brand": dump.brand,
         "model": dump.model,
         "platform": dump.platform,
-        "hardware": dump.get_prop("ro.hardware", default="qcom"),
         "board_name": dump.get_prop(
             "ro.product.board", "ro.board.platform", default=dump.platform
         ),
-        "soc_model": dump.get_prop("ro.soc.model", default=dump.platform),
         # architecture
         "target_arch": _ARM64["arch"],
         "target_arch_variant": _ARM64["arch_variant"],
@@ -251,11 +239,8 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         ),
         "arch_block": _arch_block(dump),
         # build / product
-        "android_version": dump.android_version,
-        "api_level": str(api_level or ""),
         "shipping_api_level": str(shipping_api or ""),
         "board_api_level": str(board_api or shipping_api or ""),
-        "density": _density_bucket(_int_prop(dump, "ro.sf.lcd_density")),
         "build_description": dump.get_prop(
             "ro.build.description", default=dump.fingerprint
         ),
