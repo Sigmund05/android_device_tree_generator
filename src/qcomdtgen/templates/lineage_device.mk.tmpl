@@ -1,21 +1,26 @@
 {{license}}
 
+# Inherit from those products. Most specific first.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
+
 # Inherit from {{device}} device
 $(call inherit-product, device/{{manufacturer}}/{{device}}/device.mk)
 
-# Inherit some common Lineage stuff
+# Inherit some common Lineage stuff.
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
+# Device identifier. This must come after all inclusions.
 PRODUCT_NAME := lineage_{{device}}
 PRODUCT_DEVICE := {{device}}
-PRODUCT_MANUFACTURER := {{product_manufacturer}}
-PRODUCT_BRAND := {{brand}}
+PRODUCT_MANUFACTURER := {{manufacturer}}
 PRODUCT_MODEL := {{model}}
+PRODUCT_BRAND := {{brand}}
+
+PRODUCT_GMS_CLIENTID_BASE := android-{{manufacturer}}
 
 PRODUCT_BUILD_PROP_OVERRIDES += \
     BuildDesc="{{build_description}}" \
     BuildFingerprint={{build_fingerprint}} \
     DeviceProduct={{device_product}} \
     SystemName={{system_name}}
-
-PRODUCT_GMS_CLIENTID_BASE := android-{{manufacturer}}
