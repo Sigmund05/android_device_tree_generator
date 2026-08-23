@@ -65,3 +65,16 @@ def test_64_bit_only_dump(tmp_path):
     dump = AndroidDump(root)
     assert dump.arch == "arm64"
     assert not dump.supports_32_bit_apps
+
+
+def test_manufacturer_dir_is_lowercased(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=foo\n"
+        "ro.product.manufacturer=INFINIX MOBILITY LIMITED\n"
+        "ro.product.cpu.abilist=arm64-v8a\n"
+    )
+    dump = AndroidDump(root)
+    assert dump.manufacturer == "INFINIX MOBILITY LIMITED"
+    assert dump.manufacturer_dir == "infinix_mobility_limited"

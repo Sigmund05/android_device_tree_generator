@@ -36,7 +36,9 @@ def test_product_makefiles(context):
 
     device_mk = render("lineage_device.mk", context)
     assert "PRODUCT_NAME := lineage_venus" in device_mk
-    assert "PRODUCT_MANUFACTURER := xiaomi" in device_mk
+    # paths use the lowercase directory name, PRODUCT_MANUFACTURER the original
+    assert "PRODUCT_MANUFACTURER := Xiaomi" in device_mk
+    assert "device/xiaomi/venus/device.mk" in device_mk
     assert "PRODUCT_BRAND := Xiaomi" in device_mk
     assert "$(SRC_TARGET_DIR)/product/core_64_bit.mk" in device_mk
     assert "device/xiaomi/venus/device.mk" in device_mk
