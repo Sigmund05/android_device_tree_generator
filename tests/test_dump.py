@@ -112,29 +112,49 @@ def test_device_codename_is_sanitized(tmp_path):
     assert AndroidDump(root).device == "escape"
 
 
-@pytest.mark.parametrize(
-    "platform, expected",
-    [
-        ("lahaina", True),
-        ("taro", True),
-        ("sun", True),
-        ("msm8998", True),
-        ("LAHAINA", True),  # the property's case must not matter
-        # SoC part numbers are not platform names: an SM8450 says "taro"
-        ("sm8450", False),
-        ("smdk4210", False),  # an old Exynos board
-        ("mt6893", False),
-        ("exynos2200", False),
-    ],
-)
-def test_supported_platforms_come_from_qcom_caf_common(tmp_path, platform, expected):
+def _platform_dump(tmp_path, platform):
     root = tmp_path / platform
     (root / "system" / "etc").mkdir(parents=True)
     (root / "system" / "build.prop").write_text(
         f"ro.product.device=foo\nro.board.platform={platform}\n"
         "ro.product.cpu.abilist=arm64-v8a\n"
     )
-    assert AndroidDump(root).is_supported_platform is expected
+    return root
+
+
+@pytest.mark.parametrize(
+    "platform",
+    ["lahaina", "taro", "sun", "msm8998", "LAHAINA"],  # the case must not matter
+)
+def test_supported_platforms_come_from_qcom_caf_common(tmp_path, platform):
+    assert AndroidDump(_platform_dump(tmp_path, platform)).is_supported_platform
+
+
+@pytest.mark.parametrize(
+    "platform",
+    [
+        "sm8450",  # a SoC part number, not a platform name: such a device says taro
+        "smdk4210",  # an old Exynos board
+        "mt6893",
+        "exynos2200",
+        "ums512",
+    ],
+)
+def test_another_vendors_soc_is_refused(tmp_path, platform):
+    with pytest.raises(DumpError, match="unsupported platform"):
+        AndroidDump(_platform_dump(tmp_path, platform))
+
+
+def test_a_dump_naming_no_platform_is_still_read(tmp_path):
+    """Nothing proves it is another vendor, so this one only warns."""
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=foo\nro.product.cpu.abilist=arm64-v8a\n"
+    )
+    dump = AndroidDump(root)
+    assert dump.platform == "unknown"
+    assert not dump.is_supported_platform
 
 
 def test_the_platform_list_matches_qcom_boards_mk():

@@ -126,12 +126,20 @@ def test_result_lists_every_written_file(dump_dir, tmp_path):
     assert result.device_dir.name == "venus"
 
 
-def test_unsupported_platform_warning_survives_quiet(dump_dir, tmp_path, capsys):
+def test_another_vendors_soc_generates_nothing(dump_dir, tmp_path, capsys):
     (dump_dir / "vendor" / "build.prop").write_text("ro.board.platform=exynos2200\n")
+    out = tmp_path / "android"
+    assert main([str(dump_dir), "-o", str(out)]) == 1
+    assert "unsupported platform 'exynos2200'" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_an_unnamed_platform_warns_but_still_runs(dump_dir, tmp_path, capsys):
+    (dump_dir / "vendor" / "build.prop").write_text("ro.hardware=qcom\n")
     assert main([str(dump_dir), "-o", str(tmp_path / "android"), "-q"]) == 0
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "hardware/qcom-caf/common supports" in captured.err
+    assert "does not name a board platform" in captured.err
 
 
 def test_no_warning_for_a_supported_platform(dump_dir, tmp_path, capsys):

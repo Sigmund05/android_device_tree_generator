@@ -106,12 +106,13 @@ def _print_summary(dump: AndroidDump) -> None:
         print(f"  {key.ljust(width)}  {value}")
 
 
-def _warn_if_unsupported_platform(dump: AndroidDump) -> None:
-    """Worth saying even when quiet: the whole tool assumes Qualcomm."""
+def _warn_if_platform_unknown(dump: AndroidDump) -> None:
+    """A dump naming another vendor's SoC is refused when it is read; this is
+    the remaining case, where nothing in it names a platform at all."""
     if not dump.is_supported_platform:
         print(
-            f"{PROG}: warning: {dump.platform!r} is not one of the platforms "
-            "hardware/qcom-caf/common supports; results may be wrong",
+            f"{PROG}: warning: the dump does not name a board platform, so "
+            "TARGET_BOARD_PLATFORM cannot be filled in; results may be wrong",
             file=sys.stderr,
         )
 
@@ -132,7 +133,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     try:
         generator = DeviceTreeGenerator(_options(args), log=log)
-        _warn_if_unsupported_platform(generator.dump)
+        _warn_if_platform_unknown(generator.dump)
         if verbose:
             _print_summary(generator.dump)
         result = generator.run()

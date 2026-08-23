@@ -52,6 +52,9 @@ _BUILD_PROP_NAMES: List[str] = ["build.prop", "etc/build.prop"]
 #: Ltd." must not turn into a path ending in a dot or BOARD_...LTD._SIZE.
 _UNSAFE_NAME_CHARS = re.compile(r"[^a-z0-9_]+")
 
+#: What the derived properties report when a dump does not say.
+UNKNOWN = "unknown"
+
 #: Every TARGET_BOARD_PLATFORM LineageOS supports, from the QCOM_BOARD_PLATFORMS
 #: list in hardware/qcom-caf/common/qcom_boards.mk (lineage-23.2), grouped by
 #: the UM kernel family it belongs to there.  Note these are the platform code
@@ -82,7 +85,7 @@ QCOM_BOARD_PLATFORMS = frozenset(
 )  # fmt: skip
 
 
-def sanitize_name(name: str, default: str = "unknown") -> str:
+def sanitize_name(name: str, default: str = UNKNOWN) -> str:
     """Fold a property value into something usable as a directory name."""
     cleaned = _UNSAFE_NAME_CHARS.sub("_", name.lower()).strip("_")
     return cleaned or default
@@ -146,6 +149,7 @@ class AndroidDump:
         if not self.props:
             raise DumpError(f"no build.prop found in any partition of {self.path}")
         self._reject_unsupported_arch()
+        self._reject_unsupported_platform()
         #: Parsed image headers, when the dump ships them.
         self.boot_image: Optional[BootImage] = load_boot_image(self.path)
         self.vendor_boot_image: Optional[BootImage] = load_vendor_boot_image(self.path)
@@ -213,6 +217,21 @@ class AndroidDump:
                 "64-bit devices"
             )
 
+    def _reject_unsupported_platform(self) -> None:
+        """Every platform in the list is a Qualcomm one; anything else is
+        another vendor's SoC, and a Qualcomm device tree cannot describe it.
+
+        A dump that names no platform at all is a different case - nothing
+        proves it is another vendor - so that one only gets a warning.
+        """
+        if self.platform == UNKNOWN or self.is_supported_platform:
+            return
+        raise DumpError(
+            f"unsupported platform {self.platform!r}: qcomdtgen only handles the "
+            f"{len(QCOM_BOARD_PLATFORMS)} Qualcomm platforms "
+            "hardware/qcom-caf/common supports"
+        )
+
     # -- property access ---------------------------------------------------
 
     def get_prop(self, *keys: str, default: str = "") -> str:
@@ -262,7 +281,7 @@ class AndroidDump:
         return (
             self.get_product_prop("manufacturer")
             or self.get_product_prop("brand")
-            or "unknown"
+            or UNKNOWN
         )
 
     @property
@@ -271,7 +290,7 @@ class AndroidDump:
 
     @property
     def model(self) -> str:
-        return self.get_product_prop("model", default="unknown")
+        return self.get_product_prop("model", default=UNKNOWN)
 
     @property
     def manufacturer_dir(self) -> str:
@@ -284,7 +303,7 @@ class AndroidDump:
             "ro.board.platform",
             "ro.vendor.qti.soc_name",
             "ro.soc.model",
-            default="unknown",
+            default=UNKNOWN,
         )
 
     @property
@@ -313,7 +332,7 @@ class AndroidDump:
 
     @property
     def android_version(self) -> str:
-        return self.get_prop("ro.build.version.release", default="unknown")
+        return self.get_prop("ro.build.version.release", default=UNKNOWN)
 
     @property
     def fingerprint(self) -> str:
@@ -321,7 +340,7 @@ class AndroidDump:
             "ro.build.fingerprint",
             "ro.vendor.build.fingerprint",
             "ro.system.build.fingerprint",
-            default="unknown",
+            default=UNKNOWN,
         )
 
     @property
