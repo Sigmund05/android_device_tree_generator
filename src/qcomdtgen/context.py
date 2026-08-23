@@ -133,13 +133,13 @@ def _vendor_blob_blocks(with_blobs: bool, vendor: str, device: str) -> Dict[str,
     return {
         "boardconfig_vendor_block": "\n".join(
             [
-                "# Inherit from the proprietary version",
+                "# Inherit the proprietary files",
                 f"include vendor/{vendor}/{device}/BoardConfigVendor.mk",
             ]
         ),
         "device_vendor_block": "\n".join(
             [
-                "# Inherit proprietary blobs",
+                "# Inherit from the proprietary files makefile.",
                 f"$(call inherit-product, vendor/{vendor}/{device}/{device}-vendor.mk)",
             ]
         ),
