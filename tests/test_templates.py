@@ -50,7 +50,7 @@ def test_extract_files_uses_device_and_vendor(context):
 def test_setup_makefiles_is_a_shebang_to_extract_files(context):
     lines = render("setup-makefiles.py", context).splitlines()
     assert lines[0] == "#!./extract-files.py --regenerate_makefiles"
-    assert "\n".join(lines[1:]) == SPDX_HEADER
+    assert "\n".join(lines[1:]) == LICENSE
 
 
 def test_device_mk(context):
@@ -95,12 +95,6 @@ LICENSE = """\
 # SPDX-License-Identifier: Apache-2.0
 #"""
 
-SPDX_HEADER = """\
-#
-# SPDX-FileCopyrightText: The LineageOS Project
-# SPDX-License-Identifier: Apache-2.0
-#"""
-
 
 def test_license_header_is_shared(context):
     for template in ("AndroidProducts.mk", "BoardConfig.mk", "device.mk", "lineage_device.mk"):
@@ -112,11 +106,10 @@ def test_license_header_uses_soong_comments_in_android_bp(context):
     assert rendered.startswith(LICENSE.replace("#", "//") + "\n")
 
 
-def test_extract_utils_scripts_use_the_upstream_spdx_header(context):
-    """The extract-utils scripts follow upstream's header, not license.tmpl."""
+def test_license_header_follows_the_shebang_in_extract_files(context):
     lines = render("extract-files.py", context).splitlines()
     assert lines[0].startswith("#!/usr/bin/env")
-    assert "\n".join(lines[1:5]) == SPDX_HEADER
+    assert "\n".join(lines[1:5]) == LICENSE
 
 
 def test_no_year_or_generator_stamp(context):
