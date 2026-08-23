@@ -195,11 +195,16 @@ class AndroidDump:
 
     @property
     def manufacturer(self) -> str:
-        return self.get_product_prop("manufacturer", default="unknown")
+        """``ro.product.manufacturer``, falling back to the brand."""
+        return (
+            self.get_product_prop("manufacturer")
+            or self.get_product_prop("brand")
+            or "unknown"
+        )
 
     @property
     def brand(self) -> str:
-        return self.get_product_prop("brand", default=self.manufacturer)
+        return self.get_product_prop("brand") or self.manufacturer
 
     @property
     def model(self) -> str:
@@ -208,7 +213,7 @@ class AndroidDump:
     @property
     def manufacturer_dir(self) -> str:
         """Manufacturer as the device tree spells it: lowercase, no spaces."""
-        return (self.manufacturer or self.brand).lower().replace(" ", "_")
+        return self.manufacturer.lower().replace(" ", "_")
 
     @property
     def platform(self) -> str:
