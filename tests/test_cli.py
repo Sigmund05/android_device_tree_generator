@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from qcomdtgen.cli import build_parser, main
 
 
@@ -122,3 +124,39 @@ def test_result_lists_every_written_file(dump_dir, tmp_path):
     assert result.blob_count > 0
     assert all(path.is_file() for path in result.written)
     assert result.device_dir.name == "venus"
+
+
+def test_non_qualcomm_warning_survives_quiet(dump_dir, tmp_path, capsys):
+    (dump_dir / "vendor" / "build.prop").write_text("ro.board.platform=exynos2200\n")
+    assert main([str(dump_dir), "-o", str(tmp_path / "android"), "-q"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "does not look like a Qualcomm platform" in captured.err
+
+
+def test_no_warning_for_a_qualcomm_dump(dump_dir, tmp_path, capsys):
+    assert main([str(dump_dir), "-o", str(tmp_path / "android")]) == 0
+    assert "warning" not in capsys.readouterr().err
+
+
+def test_broken_pipe_exits_like_a_shell_does(dump_dir, tmp_path, monkeypatch):
+    """`qcomdtgen ... | head` must not end in a traceback."""
+    import builtins
+
+    from qcomdtgen import cli
+
+    monkeypatch.setattr(cli, "_close_stdout", lambda: None)
+
+    def explode(*args, **kwargs):
+        raise BrokenPipeError
+
+    monkeypatch.setattr(builtins, "print", explode)
+    assert main([str(dump_dir), "-o", str(tmp_path / "android")]) == cli.EXIT_BROKEN_PIPE
+
+
+def test_help_keeps_the_examples_readable(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        build_parser().parse_args(["--help"])
+    assert exit_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "qcomdtgen ~/dumps/venus -o ~/android/lineage  write into an Android tree" in help_text

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from qcomdtgen import __version__
+from qcomdtgen.dump import AndroidDump
 from qcomdtgen.errors import QcomDtGenError
 from qcomdtgen.generator import (
     DEFAULT_ANDROID_TOP,
@@ -18,19 +19,32 @@ from qcomdtgen.generator import (
 
 PROG = "qcomdtgen"
 
+EXIT_OK = 0
+EXIT_ERROR = 1
+#: What a shell reports for a command killed by SIGINT / SIGPIPE.
+EXIT_INTERRUPTED = 130
+EXIT_BROKEN_PIPE = 141
+
+_EXAMPLES = """\
+examples:
+  qcomdtgen ~/dumps/venus                       write ./device/xiaomi/venus
+  qcomdtgen ~/dumps/venus -o ~/android/lineage  write into an Android tree
+  qcomdtgen ~/dumps/venus -o . -P --force       regenerate, blob list aside
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=PROG,
         description="Generate a LineageOS device tree from an extracted Android dump.",
-        epilog=(
-            "example: qcomdtgen ~/dumps/lahaina -o ~/android/lineage "
-            "--proprietary-files"
-        ),
+        epilog=_EXAMPLES,
+        # keep the examples laid out as written instead of being re-wrapped
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "dump",
         type=Path,
+        metavar="DUMP",
         help="path to the extracted Android dump (the directory holding "
         "system/, vendor/, product/, ...)",
     )
@@ -52,27 +66,27 @@ def build_parser() -> argparse.ArgumentParser:
         dest="proprietary_files",
         action="store_true",
         default=True,
-        help="generate proprietary-files.txt (default)",
+        help="generate proprietary-files.txt and the extract-utils scripts (default)",
     )
     blobs.add_argument(
         "-P",
         "--no-proprietary-files",
         dest="proprietary_files",
         action="store_false",
-        help="do not generate proprietary-files.txt",
+        help="generate the makefiles only",
     )
 
     parser.add_argument(
         "-f",
         "--force",
         action="store_true",
-        help="overwrite an existing, non-empty output directory",
+        help="replace a previous run in a non-empty output directory",
     )
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        help="only report errors",
+        help="only report warnings and errors",
     )
     parser.add_argument(
         "-V",
@@ -83,51 +97,67 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_summary(generator: DeviceTreeGenerator) -> None:
-    summary = generator.dump.summary()
+def _print_summary(dump: AndroidDump) -> None:
+    """What the dump turned out to be, as a two column table."""
+    summary = dump.summary()
     width = max(len(key) for key in summary)
     print("detected device:")
     for key, value in summary.items():
         print(f"  {key.ljust(width)}  {value}")
-    if not generator.dump.is_qualcomm:
+
+
+def _warn_if_not_qualcomm(dump: AndroidDump) -> None:
+    """Worth saying even when quiet: the whole tool assumes Qualcomm."""
+    if not dump.is_qualcomm:
         print(
-            f"warning: {generator.dump.platform!r} does not look like a Qualcomm "
+            f"{PROG}: warning: {dump.platform!r} does not look like a Qualcomm "
             "platform; results may be wrong",
             file=sys.stderr,
         )
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
-    verbose = not args.quiet
-
-    def log(message: str) -> None:
-        if verbose:
-            print(message)
-
-    options = GeneratorOptions(
+def _options(args: argparse.Namespace) -> GeneratorOptions:
+    return GeneratorOptions(
         dump_path=args.dump,
         android_top=args.output,
         proprietary_files=args.proprietary_files,
         force=args.force,
     )
 
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+    verbose = not args.quiet
+    log = print if verbose else (lambda *_args, **_kwargs: None)
+
     try:
-        generator = DeviceTreeGenerator(options, log=log)
+        generator = DeviceTreeGenerator(_options(args), log=log)
+        _warn_if_not_qualcomm(generator.dump)
         if verbose:
-            _print_summary(generator)
+            _print_summary(generator.dump)
         result = generator.run()
+        if verbose:
+            print(f"device tree: {result.device_dir}")
+            print(f"generated {result.file_count} file(s)")
     except QcomDtGenError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
-        return 1
+        return EXIT_ERROR
     except KeyboardInterrupt:
         print(f"{PROG}: interrupted", file=sys.stderr)
-        return 130
+        return EXIT_INTERRUPTED
+    except BrokenPipeError:
+        # A reader such as `| head` went away; close stdout so the interpreter
+        # does not report the failed flush on the way out.
+        _close_stdout()
+        return EXIT_BROKEN_PIPE
+    return EXIT_OK
 
-    if verbose:
-        print(f"device tree: {result.device_dir}")
-        print(f"generated {result.file_count} file(s)")
-    return 0
+
+def _close_stdout() -> None:
+    try:
+        sys.stdout.close()
+    except OSError:  # pragma: no cover - already gone
+        pass
 
 
 if __name__ == "__main__":
