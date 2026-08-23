@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional
 
-from qcomdtgen.bootimg import BootImage, load_boot_image
+from qcomdtgen.bootimg import BootImage, load_boot_image, load_vendor_boot_image
 from qcomdtgen.errors import DumpError
 
 #: Partitions a device tree may pull blobs and properties from, in the order
@@ -105,8 +105,9 @@ class AndroidDump:
         if not self.props:
             raise DumpError(f"no build.prop found in any partition of {self.path}")
         self._reject_unsupported_arch()
-        #: Parsed boot.img header, when the dump ships one.
+        #: Parsed image headers, when the dump ships them.
         self.boot_image: Optional[BootImage] = load_boot_image(self.path)
+        self.vendor_boot_image: Optional[BootImage] = load_vendor_boot_image(self.path)
 
     # -- discovery ---------------------------------------------------------
 
@@ -271,6 +272,18 @@ class AndroidDump:
             default="unknown",
         )
 
+    @property
+    def kernel_cmdline(self) -> str:
+        """The kernel cmdline, from vendor_boot when the device has one.
+
+        Boot header v3 moved the cmdline into vendor_boot, so that copy wins
+        whenever it carries anything.
+        """
+        for image in (self.vendor_boot_image, self.boot_image):
+            if image is not None and image.cmdline:
+                return image.cmdline
+        return ""
+
     def summary(self) -> Dict[str, str]:
         """Human readable overview of what was detected in the dump."""
         return {
@@ -286,5 +299,10 @@ class AndroidDump:
             "fingerprint": self.fingerprint,
             "boot image": (
                 self.boot_image.describe() if self.boot_image else "not found in dump"
+            ),
+            "vendor_boot": (
+                self.vendor_boot_image.describe()
+                if self.vendor_boot_image
+                else "not found in dump"
             ),
         }

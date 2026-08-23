@@ -91,11 +91,12 @@ above from `ro.product.cpu.abilist`, the board name and platform from `ro.board.
 shipping API level, screen density, security patch level, and the A/B, virtual A/B
 and dynamic-partition blocks from the matching boot properties.
 
-`BOARD_BOOT_HEADER_VERSION` and `BOARD_KERNEL_PAGESIZE` come from the boot image
-header - no build.prop property carries them. `boot.img` is looked for at the dump
-root and under `images/`, `IMAGES/`, `boot/` and `firmware/`. Values a dump cannot
-tell us (kernel cmdline, partition sizes, and the header version when the dump
-ships no boot.img) are emitted with a `TODO` marker.
+`BOARD_BOOT_HEADER_VERSION`, `BOARD_KERNEL_PAGESIZE` and `BOARD_KERNEL_CMDLINE` come
+from the image headers - no build.prop property carries them. `boot.img` and
+`vendor_boot.img` are looked for at the dump root and under `images/`, `IMAGES/`,
+`boot/` and `firmware/`; boot header v3 moved the cmdline into `vendor_boot`, so
+that copy wins when it has one. Values a dump cannot tell us (partition sizes, and
+the header fields when the dump ships no images) are emitted with a `TODO` marker.
 
 `extract-files.py` targets the current python `extract-utils`
 (`ExtractUtilsModule` / `ExtractUtils.device`), and `setup-makefiles.py` is the
@@ -117,7 +118,7 @@ src/qcomdtgen/
   cli.py               argument parsing and process exit codes
   generator.py         orchestration, output directory handling
   dump.py              partition discovery and build.prop parsing
-  bootimg.py           boot.img header parsing
+  bootimg.py           boot.img / vendor_boot.img header parsing
   proprietary.py       blob scanning and proprietary-files.txt rendering
   context.py           dump properties -> template placeholders
   templates_engine.py  template loading and {{placeholder}} rendering

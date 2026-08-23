@@ -146,6 +146,17 @@ def _vendor_blob_blocks(with_blobs: bool, manufacturer: str, device: str) -> Dic
     }
 
 
+def _cmdline_block(cmdline: str) -> str:
+    """BOARD_KERNEL_CMDLINE, one argument per continuation line."""
+    if not cmdline:
+        return "BOARD_KERNEL_CMDLINE := # TODO: no cmdline in the dump's boot images"
+    arguments = cmdline.split()
+    if len(arguments) == 1:
+        return f"BOARD_KERNEL_CMDLINE := {arguments[0]}"
+    body = " \\\n".join(f"    {argument}" for argument in arguments)
+    return "BOARD_KERNEL_CMDLINE := \\\n" + body
+
+
 def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
     """Header fields only the boot image can answer.
 
@@ -155,6 +166,7 @@ def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
     boot = dump.boot_image
     page_size = boot.page_size if boot else 4096
     return {
+        "kernel_cmdline_block": _cmdline_block(dump.kernel_cmdline),
         "boot_header_version": (
             str(boot.header_version)
             if boot
