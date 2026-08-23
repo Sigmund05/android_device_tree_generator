@@ -11,3 +11,7 @@ class DumpError(QcomDtGenError):
 
 class OutputError(QcomDtGenError):
     """The output location cannot be used."""
+
+
+class TemplateError(QcomDtGenError):
+    """A template is missing or cannot be rendered."""

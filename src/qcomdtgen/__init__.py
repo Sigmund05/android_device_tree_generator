@@ -4,7 +4,7 @@
 __version__ = "0.1.0"
 
 from qcomdtgen.dump import AndroidDump
-from qcomdtgen.errors import DumpError, QcomDtGenError
+from qcomdtgen.errors import DumpError, OutputError, QcomDtGenError, TemplateError
 from qcomdtgen.generator import DeviceTreeGenerator, GeneratorOptions
 
 __all__ = [
@@ -14,4 +14,6 @@ __all__ = [
     "GeneratorOptions",
     "QcomDtGenError",
     "DumpError",
+    "OutputError",
+    "TemplateError",
 ]

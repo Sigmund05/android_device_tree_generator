@@ -6,18 +6,13 @@ import os
 import stat
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 from qcomdtgen.context import build_context
 from qcomdtgen.dump import AndroidDump
 from qcomdtgen.errors import OutputError
 from qcomdtgen.proprietary import collect_blobs
-from qcomdtgen.templates_engine import (
-    BASE_TEMPLATES,
-    BLOB_TEMPLATES,
-    EXECUTABLE_FILES,
-    render,
-)
+from qcomdtgen.templates_engine import render, templates_for
 
 #: ANDROID_TOP used when ``--output`` is not given.
 DEFAULT_ANDROID_TOP = Path(".")
@@ -107,22 +102,20 @@ class DeviceTreeGenerator:
 
     def _write_templates(self, device_dir: Path, result: GeneratorResult) -> None:
         context = build_context(self.dump, with_blobs=self.options.proprietary_files)
-        for template, filename in self._template_map().items():
-            target = device_dir / filename.format(device=self.dump.device)
-            self._write(target, render(template, context, target.name))
+        for template in templates_for(self.options.proprietary_files):
+            target = device_dir / template.output_name(self.dump.device)
+            self._write(
+                target,
+                render(template.name, context, target.name),
+                executable=template.executable,
+            )
             result.written.append(target)
             self._log(f"wrote {target.name}")
 
-    def _template_map(self) -> Dict[str, str]:
-        templates = dict(BASE_TEMPLATES)
-        if self.options.proprietary_files:
-            templates.update(BLOB_TEMPLATES)
-        return templates
-
     @staticmethod
-    def _write(target: Path, content: str) -> Path:
+    def _write(target: Path, content: str, executable: bool = False) -> Path:
         target.write_text(content, encoding="utf-8")
-        if target.name in EXECUTABLE_FILES:
+        if executable:
             mode = target.stat().st_mode
             target.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         return target
