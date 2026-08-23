@@ -116,3 +116,14 @@ def test_android_bp_has_an_empty_namespace(context):
     rendered = render("Android.bp", context)
     assert rendered.endswith("soong_namespace {\n}\n")
     assert "imports" not in rendered
+
+
+def test_removed_board_config_flags(context):
+    rendered = render("BoardConfig.mk", context)
+    for flag in (
+        "TARGET_USES_UEFI",
+        "TARGET_USES_64_BIT_BINDER",
+        "TARGET_KERNEL_ARCH",
+        "TARGET_KERNEL_HEADER_ARCH",
+    ):
+        assert flag not in rendered
