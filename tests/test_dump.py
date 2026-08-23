@@ -34,3 +34,22 @@ def test_missing_path(tmp_path):
 def test_empty_dir_is_rejected(tmp_path):
     with pytest.raises(DumpError):
         AndroidDump(tmp_path)
+
+
+def test_x86_dump_is_rejected(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=emulator\nro.product.cpu.abilist=x86_64,x86\n"
+    )
+    with pytest.raises(DumpError, match="only handles ARM"):
+        AndroidDump(root)
+
+
+def test_arm32_only_dump(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=foo\nro.product.cpu.abilist=armeabi-v7a,armeabi\n"
+    )
+    assert AndroidDump(root).arch == "arm"

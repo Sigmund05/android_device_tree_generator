@@ -17,7 +17,8 @@ _DENSITY_BUCKETS: Tuple[Tuple[int, str], ...] = (
     (640, "xxxhdpi"),
 )
 
-#: Per-arch defaults for the TARGET_* block of BoardConfig.mk.
+#: Per-arch defaults for the TARGET_* block of BoardConfig.mk.  ARM only -
+#: every Qualcomm SoC is ARM.
 _ARCH_DEFAULTS: Dict[str, Dict[str, str]] = {
     "arm64": {
         "arch": "arm64",
@@ -32,20 +33,6 @@ _ARCH_DEFAULTS: Dict[str, Dict[str, str]] = {
         "cpu_abi": "armeabi-v7a",
         "cpu_abi2": "armeabi",
         "cpu_variant": "cortex-a53",
-    },
-    "x86_64": {
-        "arch": "x86_64",
-        "arch_variant": "x86_64",
-        "cpu_abi": "x86_64",
-        "cpu_abi2": "",
-        "cpu_variant": "generic",
-    },
-    "x86": {
-        "arch": "x86",
-        "arch_variant": "x86",
-        "cpu_abi": "x86",
-        "cpu_abi2": "",
-        "cpu_variant": "generic",
     },
 }
 

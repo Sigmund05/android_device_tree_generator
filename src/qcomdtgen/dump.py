@@ -103,6 +103,7 @@ class AndroidDump:
         self.props: Dict[str, str] = self._collect_props()
         if not self.props:
             raise DumpError(f"no build.prop found in any partition of {self.path}")
+        self._reject_unsupported_arch()
 
     # -- discovery ---------------------------------------------------------
 
@@ -151,6 +152,14 @@ class AndroidDump:
                     partition.props.update(_read_prop_file(prop_path))
             merged.update(partition.props)
         return merged
+
+    def _reject_unsupported_arch(self) -> None:
+        """Only ARM devices are supported; Qualcomm SoCs are all ARM."""
+        abilist = self.get_prop("ro.product.cpu.abilist", "ro.product.cpu.abi")
+        if "x86" in abilist:
+            raise DumpError(
+                f"unsupported architecture {abilist!r}: qcomdtgen only handles ARM devices"
+            )
 
     # -- property access ---------------------------------------------------
 
@@ -218,14 +227,8 @@ class AndroidDump:
     @property
     def arch(self) -> str:
         abilist = self.get_prop("ro.product.cpu.abilist", "ro.product.cpu.abi")
-        if "arm64" in abilist:
-            return "arm64"
-        if "armeabi" in abilist:
+        if "armeabi" in abilist and "arm64" not in abilist:
             return "arm"
-        if "x86_64" in abilist:
-            return "x86_64"
-        if "x86" in abilist:
-            return "x86"
         return "arm64"
 
     @property
