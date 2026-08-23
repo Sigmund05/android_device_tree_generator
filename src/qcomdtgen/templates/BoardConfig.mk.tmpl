@@ -6,11 +6,9 @@ DEVICE_PATH := device/{{vendor}}/{{device}}
 TARGET_ARCH := {{target_arch}}
 TARGET_ARCH_VARIANT := {{target_arch_variant}}
 TARGET_CPU_ABI := {{target_cpu_abi}}
-TARGET_CPU_ABI2 := {{target_cpu_abi2}}
 TARGET_CPU_VARIANT := {{target_cpu_variant}}
 TARGET_CPU_VARIANT_RUNTIME := {{target_cpu_variant_runtime}}
-
-{{second_arch_block}}
+{{arch_block}}
 
 # Bootloader
 TARGET_BOOTLOADER_BOARD_NAME := {{board_name}}

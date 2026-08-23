@@ -46,10 +46,22 @@ def test_x86_dump_is_rejected(tmp_path):
         AndroidDump(root)
 
 
-def test_arm32_only_dump(tmp_path):
+def test_arm32_only_dump_is_rejected(tmp_path):
     root = tmp_path / "dump"
     (root / "system" / "etc").mkdir(parents=True)
     (root / "system" / "build.prop").write_text(
         "ro.product.device=foo\nro.product.cpu.abilist=armeabi-v7a,armeabi\n"
     )
-    assert AndroidDump(root).arch == "arm"
+    with pytest.raises(DumpError, match="only handles 64-bit"):
+        AndroidDump(root)
+
+
+def test_64_bit_only_dump(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=foo\nro.product.cpu.abilist=arm64-v8a\n"
+    )
+    dump = AndroidDump(root)
+    assert dump.arch == "arm64"
+    assert not dump.supports_32_bit_apps

@@ -82,8 +82,12 @@ and injected as `{{license}}` (translated to `//` comments for `Android.bp`):
 #
 ```
 
-The makefiles are filled in from the dump's properties: architecture and ABIs from
-`ro.product.cpu.abilist`, the board name and platform from `ro.board.platform`, the
+Only 64-bit ARM devices are supported: a dump whose `ro.product.cpu.abilist` is
+x86 or 32-bit ARM only is rejected. Devices that still run 32-bit apps get the
+`TARGET_2ND_*` block, 64-bit only devices get `TARGET_SUPPORTS_32_BIT_APPS := false`.
+
+The makefiles are filled in from the dump's properties: the 32-bit app support
+above from `ro.product.cpu.abilist`, the board name and platform from `ro.board.platform`, the
 shipping API level, screen density, security patch level, and the A/B, virtual A/B
 and dynamic-partition blocks from the matching boot properties. Values a dump cannot
 tell us (kernel cmdline, partition sizes) are emitted with a `TODO` marker.

@@ -154,11 +154,18 @@ class AndroidDump:
         return merged
 
     def _reject_unsupported_arch(self) -> None:
-        """Only ARM devices are supported; Qualcomm SoCs are all ARM."""
-        abilist = self.get_prop("ro.product.cpu.abilist", "ro.product.cpu.abi")
+        """Only 64-bit ARM devices are supported."""
+        abilist = self.abilist
+        if not abilist:
+            return
         if "x86" in abilist:
             raise DumpError(
                 f"unsupported architecture {abilist!r}: qcomdtgen only handles ARM devices"
+            )
+        if "arm64" not in abilist:
+            raise DumpError(
+                f"unsupported architecture {abilist!r}: qcomdtgen only handles "
+                "64-bit devices"
             )
 
     # -- property access ---------------------------------------------------
@@ -225,11 +232,18 @@ class AndroidDump:
         return any(tag in soc for tag in ("qcom", "qualcomm", "msm", "sdm", "sm", "kona", "lito"))
 
     @property
+    def abilist(self) -> str:
+        return self.get_prop("ro.product.cpu.abilist", "ro.product.cpu.abi")
+
+    @property
     def arch(self) -> str:
-        abilist = self.get_prop("ro.product.cpu.abilist", "ro.product.cpu.abi")
-        if "armeabi" in abilist and "arm64" not in abilist:
-            return "arm"
+        """Always arm64 - 32-bit only devices are rejected at load time."""
         return "arm64"
+
+    @property
+    def supports_32_bit_apps(self) -> bool:
+        """Whether the device still runs 32-bit apps next to the 64-bit ones."""
+        return "armeabi" in self.abilist
 
     @property
     def api_level(self) -> Optional[int]:

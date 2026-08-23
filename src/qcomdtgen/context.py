@@ -17,23 +17,22 @@ _DENSITY_BUCKETS: Tuple[Tuple[int, str], ...] = (
     (640, "xxxhdpi"),
 )
 
-#: Per-arch defaults for the TARGET_* block of BoardConfig.mk.  ARM only -
-#: every Qualcomm SoC is ARM.
-_ARCH_DEFAULTS: Dict[str, Dict[str, str]] = {
-    "arm64": {
-        "arch": "arm64",
-        "arch_variant": "armv8-a",
-        "cpu_abi": "arm64-v8a",
-        "cpu_abi2": "",
-        "cpu_variant": "generic",
-    },
-    "arm": {
-        "arch": "arm",
-        "arch_variant": "armv7-a-neon",
-        "cpu_abi": "armeabi-v7a",
-        "cpu_abi2": "armeabi",
-        "cpu_variant": "cortex-a53",
-    },
+#: Primary architecture of every supported device; qcomdtgen is 64-bit ARM only.
+_ARM64: Dict[str, str] = {
+    "arch": "arm64",
+    "arch_variant": "armv8-a",
+    "cpu_abi": "arm64-v8a",
+    "cpu_variant": "generic",
+}
+
+#: Secondary architecture of devices that still run 32-bit apps.
+_ARM32: Dict[str, str] = {
+    "arch": "arm",
+    "arch_variant": "armv8-a",
+    "cpu_abi": "armeabi-v7a",
+    "cpu_abi2": "armeabi",
+    "cpu_variant": "generic",
+    "cpu_variant_runtime": "cortex-a75",
 }
 
 #: Release configuration used by the lunch combos, per shipped API level.
@@ -76,20 +75,28 @@ def _lunch_choices(device: str, api_level: Optional[int]) -> str:
     )
 
 
-def _second_arch_block(dump: AndroidDump) -> str:
-    """The TARGET_2ND_* block, for 64-bit devices that also run 32-bit code."""
-    abilist = dump.get_prop("ro.product.cpu.abilist")
-    if dump.arch != "arm64" or "armeabi" not in abilist:
-        return ""
-    second = _ARCH_DEFAULTS["arm"]
+def _arch_block(dump: AndroidDump) -> str:
+    """The 32-bit app support half of the architecture block.
+
+    A 64-bit device that still runs 32-bit apps gets a full TARGET_2ND_* set;
+    a 64-bit only device says so instead.
+    """
+    if not dump.supports_32_bit_apps:
+        return "\n".join(
+            [
+                "TARGET_SUPPORTS_32_BIT_APPS := false",
+                "TARGET_SUPPORTS_64_BIT_APPS := true",
+            ]
+        )
     return "\n".join(
         [
-            "TARGET_2ND_ARCH := arm",
-            "TARGET_2ND_ARCH_VARIANT := armv8-a",
-            f"TARGET_2ND_CPU_ABI := {second['cpu_abi']}",
-            f"TARGET_2ND_CPU_ABI2 := {second['cpu_abi2']}",
-            "TARGET_2ND_CPU_VARIANT := generic",
-            "TARGET_2ND_CPU_VARIANT_RUNTIME := cortex-a75",
+            f"TARGET_2ND_ARCH := {_ARM32['arch']}",
+            f"TARGET_2ND_ARCH_VARIANT := {_ARM32['arch_variant']}",
+            f"TARGET_2ND_CPU_ABI := {_ARM32['cpu_abi']}",
+            f"TARGET_2ND_CPU_ABI2 := {_ARM32['cpu_abi2']}",
+            f"TARGET_2ND_CPU_VARIANT := {_ARM32['cpu_variant']}",
+            f"TARGET_2ND_CPU_VARIANT_RUNTIME := {_ARM32['cpu_variant_runtime']}",
+            "TARGET_SUPPORTS_32_BIT_APPS := true",
             "TARGET_SUPPORTS_64_BIT_APPS := true",
         ]
     )
@@ -166,7 +173,6 @@ def _vendor_blob_blocks(with_blobs: bool, vendor: str, device: str) -> Dict[str,
 
 def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     """Every placeholder the templates may reference."""
-    arch = _ARCH_DEFAULTS.get(dump.arch, _ARCH_DEFAULTS["arm64"])
     device = dump.device
     vendor = dump.vendor
     api_level = dump.api_level
@@ -190,15 +196,14 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         ),
         "soc_model": dump.get_prop("ro.soc.model", default=dump.platform),
         # architecture
-        "target_arch": arch["arch"],
-        "target_arch_variant": arch["arch_variant"],
-        "target_cpu_abi": arch["cpu_abi"],
-        "target_cpu_abi2": arch["cpu_abi2"],
-        "target_cpu_variant": arch["cpu_variant"],
+        "target_arch": _ARM64["arch"],
+        "target_arch_variant": _ARM64["arch_variant"],
+        "target_cpu_abi": _ARM64["cpu_abi"],
+        "target_cpu_variant": _ARM64["cpu_variant"],
         "target_cpu_variant_runtime": dump.get_prop(
             "ro.bionic.cpu_variant", default="generic"
         ),
-        "second_arch_block": _second_arch_block(dump),
+        "arch_block": _arch_block(dump),
         # build / product
         "android_version": dump.android_version,
         "api_level": str(api_level or ""),
