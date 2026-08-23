@@ -53,6 +53,24 @@ def test_setup_makefiles_is_a_shebang_to_extract_files(context):
     )
 
 
+def test_device_mk(context):
+    rendered = render("device.mk", context)
+    assert "$(call inherit-product, hardware/qcom-caf/common/common.mk)" in rendered
+    assert "BOARD_SHIPPING_API_LEVEL := 33" in rendered
+    assert "PRODUCT_SHIPPING_API_LEVEL := 33" in rendered
+    assert "PRODUCT_SOONG_NAMESPACES" in rendered
+
+
+def test_board_api_level_prefers_the_vendor_property(dump_dir):
+    (dump_dir / "vendor" / "build.prop").write_text(
+        "ro.board.platform=lahaina\nro.board.first_api_level=31\n"
+    )
+    context = build_context(AndroidDump(dump_dir))
+    rendered = render("device.mk", context)
+    assert "BOARD_SHIPPING_API_LEVEL := 31" in rendered
+    assert "PRODUCT_SHIPPING_API_LEVEL := 33" in rendered
+
+
 def test_blocks_are_dropped_without_blobs(dump_dir):
     context = build_context(AndroidDump(dump_dir), with_blobs=False)
     assert "BoardConfigVendor.mk" not in render("BoardConfig.mk", context)

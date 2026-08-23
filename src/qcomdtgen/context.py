@@ -151,12 +151,14 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     device = dump.device
     vendor = dump.vendor
     api_level = dump.api_level
-    shipping_api = _int_prop(
+    shipping_api = _int_prop(dump, "ro.product.first_api_level") or api_level
+    # The vendor image's own API level, which can lag the system one.
+    board_api = _int_prop(
         dump,
-        "ro.product.first_api_level",
         "ro.board.first_api_level",
         "ro.board.api_level",
-    ) or api_level
+        "ro.vendor.build.version.sdk",
+    )
 
     context: Dict[str, str] = {
         "device": device,
@@ -183,6 +185,7 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         "android_version": dump.android_version,
         "api_level": str(api_level or ""),
         "shipping_api_level": str(shipping_api or ""),
+        "board_api_level": str(board_api or shipping_api or ""),
         "density": _density_bucket(_int_prop(dump, "ro.sf.lcd_density")),
         "build_description": dump.get_prop(
             "ro.build.description", default=dump.fingerprint
