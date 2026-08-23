@@ -52,10 +52,34 @@ _BUILD_PROP_NAMES: List[str] = ["build.prop", "etc/build.prop"]
 #: Ltd." must not turn into a path ending in a dot or BOARD_...LTD._SIZE.
 _UNSAFE_NAME_CHARS = re.compile(r"[^a-z0-9_]+")
 
-#: Qualcomm SoC names: a family prefix followed by digits, plus the platform
-#: code names that do not follow it.  Matching bare "sm" would call old
-#: Exynos boards such as smdk4210 Qualcomm.
-_QUALCOMM_SOC = re.compile(r"\b(?:sm|sdm|msm|apq|qcs|qcm|qsd)\d|qcom|qualcomm|kona|lito")
+#: Every TARGET_BOARD_PLATFORM LineageOS supports, from the QCOM_BOARD_PLATFORMS
+#: list in hardware/qcom-caf/common/qcom_boards.mk (lineage-23.2), grouped by
+#: the UM kernel family it belongs to there.  Note these are the platform code
+#: names, not the SoC part numbers: an SM8450 device says "taro".
+QCOM_BOARD_PLATFORMS = frozenset(
+    {
+        # UM 3.18
+        "msm8937", "msm8953", "msm8996",
+        # UM 4.4
+        "msm8998", "sdm660",
+        # UM 4.9
+        "sdm710", "sdm845",
+        # UM 4.14
+        "msmnile", "sm6150", "trinket", "atoll",
+        # UM 4.19
+        "kona", "lito", "bengal",
+        # UM 5.4
+        "lahaina", "holi",
+        # UM 5.10
+        "taro", "parrot",
+        # UM 5.15
+        "kalama", "crow",
+        # UM 6.1
+        "pineapple", "volcano",
+        # UM 6.6
+        "sun",
+    }
+)  # fmt: skip
 
 
 def sanitize_name(name: str, default: str = "unknown") -> str:
@@ -264,16 +288,9 @@ class AndroidDump:
         )
 
     @property
-    def is_qualcomm(self) -> bool:
-        soc = " ".join(
-            [
-                self.platform,
-                self.get_prop("ro.soc.manufacturer"),
-                self.get_prop("ro.vendor.qti.soc_name"),
-                self.get_prop("ro.hardware"),
-            ]
-        ).lower()
-        return _QUALCOMM_SOC.search(soc) is not None
+    def is_supported_platform(self) -> bool:
+        """Whether TARGET_BOARD_PLATFORM is one qcom-caf/common knows."""
+        return self.platform.lower() in QCOM_BOARD_PLATFORMS
 
     @property
     def abilist(self) -> str:

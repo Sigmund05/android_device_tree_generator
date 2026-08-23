@@ -14,7 +14,7 @@ def test_detects_partitions_and_props(dump_dir):
     assert dump.platform == "lahaina"
     assert dump.arch == "arm64"
     assert dump.api_level == 33
-    assert dump.is_qualcomm
+    assert dump.is_supported_platform
 
 
 def test_system_root_layout(tmp_path):
@@ -113,24 +113,38 @@ def test_device_codename_is_sanitized(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "soc, expected",
+    "platform, expected",
     [
-        ("sm8450", True),
-        ("sdm845", True),
+        ("lahaina", True),
+        ("taro", True),
+        ("sun", True),
         ("msm8998", True),
-        ("lahaina", False),  # named by ro.hardware=qcom instead
-        ("smdk4210", False),  # an old Exynos board, not Qualcomm
+        ("LAHAINA", True),  # the property's case must not matter
+        # SoC part numbers are not platform names: an SM8450 says "taro"
+        ("sm8450", False),
+        ("smdk4210", False),  # an old Exynos board
         ("mt6893", False),
         ("exynos2200", False),
     ],
 )
-def test_qualcomm_detection(tmp_path, soc, expected):
-    root = tmp_path / soc
+def test_supported_platforms_come_from_qcom_caf_common(tmp_path, platform, expected):
+    root = tmp_path / platform
     (root / "system" / "etc").mkdir(parents=True)
     (root / "system" / "build.prop").write_text(
-        f"ro.product.device=foo\nro.board.platform={soc}\nro.product.cpu.abilist=arm64-v8a\n"
+        f"ro.product.device=foo\nro.board.platform={platform}\n"
+        "ro.product.cpu.abilist=arm64-v8a\n"
     )
-    assert AndroidDump(root).is_qualcomm is expected
+    assert AndroidDump(root).is_supported_platform is expected
+
+
+def test_the_platform_list_matches_qcom_boards_mk():
+    """23 platforms, as listed in qcom_boards.mk on lineage-23.2."""
+    from qcomdtgen.dump import QCOM_BOARD_PLATFORMS
+
+    assert len(QCOM_BOARD_PLATFORMS) == 23
+    assert {"msm8996", "kona", "lahaina", "taro", "kalama", "pineapple", "sun"} <= (
+        QCOM_BOARD_PLATFORMS
+    )
 
 
 def test_system_wins_over_vendor_for_product_props(tmp_path):

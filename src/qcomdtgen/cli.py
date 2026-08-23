@@ -106,12 +106,12 @@ def _print_summary(dump: AndroidDump) -> None:
         print(f"  {key.ljust(width)}  {value}")
 
 
-def _warn_if_not_qualcomm(dump: AndroidDump) -> None:
+def _warn_if_unsupported_platform(dump: AndroidDump) -> None:
     """Worth saying even when quiet: the whole tool assumes Qualcomm."""
-    if not dump.is_qualcomm:
+    if not dump.is_supported_platform:
         print(
-            f"{PROG}: warning: {dump.platform!r} does not look like a Qualcomm "
-            "platform; results may be wrong",
+            f"{PROG}: warning: {dump.platform!r} is not one of the platforms "
+            "hardware/qcom-caf/common supports; results may be wrong",
             file=sys.stderr,
         )
 
@@ -132,7 +132,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     try:
         generator = DeviceTreeGenerator(_options(args), log=log)
-        _warn_if_not_qualcomm(generator.dump)
+        _warn_if_unsupported_platform(generator.dump)
         if verbose:
             _print_summary(generator.dump)
         result = generator.run()

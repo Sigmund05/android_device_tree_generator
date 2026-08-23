@@ -126,15 +126,15 @@ def test_result_lists_every_written_file(dump_dir, tmp_path):
     assert result.device_dir.name == "venus"
 
 
-def test_non_qualcomm_warning_survives_quiet(dump_dir, tmp_path, capsys):
+def test_unsupported_platform_warning_survives_quiet(dump_dir, tmp_path, capsys):
     (dump_dir / "vendor" / "build.prop").write_text("ro.board.platform=exynos2200\n")
     assert main([str(dump_dir), "-o", str(tmp_path / "android"), "-q"]) == 0
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "does not look like a Qualcomm platform" in captured.err
+    assert "hardware/qcom-caf/common supports" in captured.err
 
 
-def test_no_warning_for_a_qualcomm_dump(dump_dir, tmp_path, capsys):
+def test_no_warning_for_a_supported_platform(dump_dir, tmp_path, capsys):
     assert main([str(dump_dir), "-o", str(tmp_path / "android")]) == 0
     assert "warning" not in capsys.readouterr().err
 
