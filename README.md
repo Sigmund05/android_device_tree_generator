@@ -72,6 +72,16 @@ and a plain `super.img` unpack work. Properties are read from each partition's
 | `extract-files.py` | with `--proprietary-files`, mode `0755` |
 | `setup-makefiles.py` | with `--proprietary-files`, mode `0755` |
 
+Every generated file opens with the same header, kept in `templates/license.tmpl`
+and injected as `{{license}}` (translated to `//` comments for `Android.bp`):
+
+```
+#
+# Copyright (C) The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+```
+
 The makefiles are filled in from the dump's properties: architecture and ABIs from
 `ro.product.cpu.abilist`, the board name and platform from `ro.board.platform`, the
 shipping API level, screen density, security patch level, and the A/B, virtual A/B

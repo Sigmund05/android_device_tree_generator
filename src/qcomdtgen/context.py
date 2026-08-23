@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import datetime
 from typing import Dict, List, Optional, Tuple
 
-from qcomdtgen import __version__
 from qcomdtgen.dump import AndroidDump
 
 #: aapt density buckets, used to pick PRODUCT_AAPT_PREF_CONFIG.
@@ -193,8 +191,6 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     ) or api_level
 
     context: Dict[str, str] = {
-        "year": str(datetime.date.today().year),
-        "generator": f"qcomdtgen {__version__}",
         "device": device,
         "vendor": vendor,
         "manufacturer": dump.manufacturer,

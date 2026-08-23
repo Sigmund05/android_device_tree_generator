@@ -109,7 +109,7 @@ class DeviceTreeGenerator:
         context = build_context(self.dump, with_blobs=self.options.proprietary_files)
         for template, filename in self._template_map().items():
             target = device_dir / filename.format(device=self.dump.device)
-            self._write(target, render(template, context))
+            self._write(target, render(template, context, target.name))
             result.written.append(target)
             self._log(f"wrote {target.name}")
 

@@ -21,6 +21,14 @@ _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 #: A placeholder sitting alone on its line, plus the blank line after it.
 _STANDALONE = re.compile(r"(?m)^[ \t]*\{\{\s*(\w+)\s*\}\}[ \t]*\n\n?")
 
+#: The shared license header, rendered into every template's ``{{license}}``.
+LICENSE_TEMPLATE = "license"
+
+#: Comment marker per output file type; the license template is written with
+#: ``#`` and translated for the others.
+_COMMENT_STYLES: Dict[str, str] = {".bp": "//"}
+_DEFAULT_COMMENT = "#"
+
 #: Templates written for every device tree.
 BASE_TEMPLATES: Dict[str, str] = {
     "Android.bp": "Android.bp",
@@ -51,9 +59,30 @@ def load(name: str) -> str:
         raise QcomDtGenError(f"missing template: {name}.tmpl") from exc
 
 
-def render(name: str, context: Dict[str, str]) -> str:
-    """Render a template, substituting every ``{{placeholder}}``."""
+def license_header(filename: str) -> str:
+    """The license header, commented the way ``filename`` needs it."""
+    marker = _DEFAULT_COMMENT
+    for suffix, style in _COMMENT_STYLES.items():
+        if filename.endswith(suffix):
+            marker = style
+            break
+    header = load(LICENSE_TEMPLATE).rstrip("\n")
+    if marker == _DEFAULT_COMMENT:
+        return header
+    return "\n".join(
+        marker + line[len(_DEFAULT_COMMENT):] if line.startswith(_DEFAULT_COMMENT) else line
+        for line in header.splitlines()
+    )
+
+
+def render(name: str, context: Dict[str, str], filename: str = "") -> str:
+    """Render a template, substituting every ``{{placeholder}}``.
+
+    ``filename`` is the name the result is written as; it decides the comment
+    style of the license header.
+    """
     template = load(name)
+    context = {**context, "license": license_header(filename or name)}
     missing: set = set()
 
     def drop_if_empty(match: "re.Match[str]") -> str:
