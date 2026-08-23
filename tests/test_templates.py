@@ -109,3 +109,9 @@ def test_64_bit_only_board_config(tmp_path):
     rendered = render("BoardConfig.mk", build_context(AndroidDump(root)))
     assert "TARGET_SUPPORTS_32_BIT_APPS := false" in rendered
     assert "TARGET_2ND_" not in rendered
+
+
+def test_android_bp_has_an_empty_namespace(context):
+    rendered = render("Android.bp", context)
+    assert rendered.endswith("soong_namespace {\n}\n")
+    assert "imports" not in rendered
