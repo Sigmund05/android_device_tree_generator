@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional
 
+from qcomdtgen.bootimg import BootImage, load_boot_image
 from qcomdtgen.errors import DumpError
 
 #: Partitions a device tree may pull blobs and properties from, in the order
@@ -104,6 +105,8 @@ class AndroidDump:
         if not self.props:
             raise DumpError(f"no build.prop found in any partition of {self.path}")
         self._reject_unsupported_arch()
+        #: Parsed boot.img header, when the dump ships one.
+        self.boot_image: Optional[BootImage] = load_boot_image(self.path)
 
     # -- discovery ---------------------------------------------------------
 
@@ -281,4 +284,7 @@ class AndroidDump:
             "arch": self.arch,
             "android": f"{self.android_version} (API {self.api_level or '?'})",
             "fingerprint": self.fingerprint,
+            "boot image": (
+                self.boot_image.describe() if self.boot_image else "not found in dump"
+            ),
         }

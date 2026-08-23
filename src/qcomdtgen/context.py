@@ -146,6 +146,25 @@ def _vendor_blob_blocks(with_blobs: bool, manufacturer: str, device: str) -> Dic
     }
 
 
+def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
+    """Header fields only the boot image can answer.
+
+    No build.prop property carries the boot header version, so a dump without
+    a boot.img leaves a TODO behind instead of a guess.
+    """
+    boot = dump.boot_image
+    page_size = boot.page_size if boot else 4096
+    return {
+        "boot_header_version": (
+            str(boot.header_version)
+            if boot
+            else "4 # TODO: no boot.img in the dump, check the stock image"
+        ),
+        "kernel_pagesize": str(page_size),
+        "flash_block_size": str(page_size * 64),
+    }
+
+
 def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     """Every placeholder the templates may reference."""
     device = dump.device
@@ -202,7 +221,7 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         "ota_block": _ota_block(dump),
         "partition_block": _partition_block(dump),
         "kernel_source": f"kernel/{manufacturer}/{dump.platform}",
-        "boot_header_version": str(_int_prop(dump, "ro.boot.hardware.header_version") or 4),
     }
+    context.update(_boot_image_values(dump))
     context.update(_vendor_blob_blocks(with_blobs, manufacturer, device))
     return context

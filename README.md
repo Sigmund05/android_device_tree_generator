@@ -89,8 +89,13 @@ x86 or 32-bit ARM only is rejected. Devices that still run 32-bit apps get the
 The makefiles are filled in from the dump's properties: the 32-bit app support
 above from `ro.product.cpu.abilist`, the board name and platform from `ro.board.platform`, the
 shipping API level, screen density, security patch level, and the A/B, virtual A/B
-and dynamic-partition blocks from the matching boot properties. Values a dump cannot
-tell us (kernel cmdline, partition sizes) are emitted with a `TODO` marker.
+and dynamic-partition blocks from the matching boot properties.
+
+`BOARD_BOOT_HEADER_VERSION` and `BOARD_KERNEL_PAGESIZE` come from the boot image
+header - no build.prop property carries them. `boot.img` is looked for at the dump
+root and under `images/`, `IMAGES/`, `boot/` and `firmware/`. Values a dump cannot
+tell us (kernel cmdline, partition sizes, and the header version when the dump
+ships no boot.img) are emitted with a `TODO` marker.
 
 `extract-files.py` targets the current python `extract-utils`
 (`ExtractUtilsModule` / `ExtractUtils.device`), and `setup-makefiles.py` is the
@@ -112,6 +117,7 @@ src/qcomdtgen/
   cli.py               argument parsing and process exit codes
   generator.py         orchestration, output directory handling
   dump.py              partition discovery and build.prop parsing
+  bootimg.py           boot.img header parsing
   proprietary.py       blob scanning and proprietary-files.txt rendering
   context.py           dump properties -> template placeholders
   templates_engine.py  template loading and {{placeholder}} rendering
