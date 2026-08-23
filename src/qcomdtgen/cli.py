@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 from qcomdtgen import __version__
 from qcomdtgen.errors import QcomDtGenError
@@ -125,10 +125,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 130
 
     if verbose:
-        written: List[str] = [str(path) for path in result.written]
         print(f"device tree: {result.device_dir}")
-        if written:
-            print(f"generated {len(written)} file(s)")
+        print(f"generated {result.file_count} file(s)")
     return 0
 
 

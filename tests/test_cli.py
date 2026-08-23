@@ -82,3 +82,43 @@ def test_blob_scripts_skipped_without_proprietary_files(dump_dir, tmp_path):
     # the base templates are still generated
     assert (tree / "BoardConfig.mk").is_file()
     assert "BoardConfigVendor.mk" not in (tree / "BoardConfig.mk").read_text()
+
+
+def test_force_clears_the_previous_run(dump_dir, tmp_path):
+    """A rerun without blobs must not leave the extract scripts behind."""
+    out = tmp_path / "android"
+    assert main([str(dump_dir), "-o", str(out)]) == 0
+    tree = out / "device" / "xiaomi" / "venus"
+    assert (tree / "extract-files.py").is_file()
+
+    assert main([str(dump_dir), "-o", str(out), "-P", "--force"]) == 0
+    assert not (tree / "extract-files.py").exists()
+    assert not (tree / "setup-makefiles.py").exists()
+    assert not (tree / "proprietary-files.txt").exists()
+    assert (tree / "BoardConfig.mk").is_file()
+
+
+def test_force_keeps_files_the_tool_does_not_own(dump_dir, tmp_path):
+    out = tmp_path / "android"
+    main([str(dump_dir), "-o", str(out)])
+    tree = out / "device" / "xiaomi" / "venus"
+    (tree / "sepolicy").mkdir()
+    (tree / "sepolicy" / "vendor.te").write_text("# hand written\n")
+    (tree / "manifest.xml").write_text("<manifest/>\n")
+
+    assert main([str(dump_dir), "-o", str(out), "--force"]) == 0
+    assert (tree / "sepolicy" / "vendor.te").read_text() == "# hand written\n"
+    assert (tree / "manifest.xml").is_file()
+
+
+def test_result_lists_every_written_file(dump_dir, tmp_path):
+    from qcomdtgen.generator import DeviceTreeGenerator, GeneratorOptions
+
+    generator = DeviceTreeGenerator(
+        GeneratorOptions(dump_path=dump_dir, android_top=tmp_path / "android")
+    )
+    result = generator.run()
+    assert result.file_count == 9
+    assert result.blob_count > 0
+    assert all(path.is_file() for path in result.written)
+    assert result.device_dir.name == "venus"
