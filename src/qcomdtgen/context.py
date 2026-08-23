@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
+from qcomdtgen.bootimg import KERNEL_OFFSET
 from qcomdtgen.dump import AndroidDump
 
 #: aapt density buckets, used to pick PRODUCT_AAPT_PREF_CONFIG.
@@ -97,9 +98,11 @@ def _ota_block(dump: AndroidDump) -> str:
             "BOARD_USES_RECOVERY_AS_BOOT := false",
         ]
     else:
+        boot = dump.boot_image
+        has_dtbo = boot is None or boot.recovery_dtbo_size > 0
         lines += [
             "# Recovery",
-            "BOARD_INCLUDE_RECOVERY_DTBO := true",
+            f"BOARD_INCLUDE_RECOVERY_DTBO := {str(has_dtbo).lower()}",
             "TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888",
         ]
     if _bool_prop(dump, "ro.virtual_ab.enabled"):
@@ -157,6 +160,40 @@ def _cmdline_block(cmdline: str) -> str:
     return "BOARD_KERNEL_CMDLINE := \\\n" + body
 
 
+def _kernel_address_block(dump: AndroidDump) -> str:
+    """BOARD_KERNEL_BASE and the offsets mkbootimg needs alongside it.
+
+    Load addresses are stored absolute; mkbootimg builds them as base plus
+    offset, with the kernel always at +0x8000, so the base falls out of the
+    kernel address. boot v3 dropped the addresses, and vendor_boot carries
+    them from then on.
+    """
+    for image in (dump.boot_image, dump.vendor_boot_image):
+        if image is not None and image.has_load_addresses:
+            break
+    else:
+        return "BOARD_KERNEL_BASE := # TODO: no load addresses in the dump's images"
+
+    lines = [
+        f"BOARD_KERNEL_BASE := {image.base_address:#010x}",
+        f"BOARD_KERNEL_OFFSET := {KERNEL_OFFSET:#010x}",
+    ]
+    args = ["--base $(BOARD_KERNEL_BASE)", "--kernel_offset $(BOARD_KERNEL_OFFSET)"]
+    for variable, address, argument in (
+        ("BOARD_RAMDISK_OFFSET", image.ramdisk_address, "--ramdisk_offset"),
+        ("BOARD_KERNEL_TAGS_OFFSET", image.tags_address, "--tags_offset"),
+        ("BOARD_SECOND_OFFSET", image.second_address, "--second_offset"),
+        ("BOARD_DTB_OFFSET", image.dtb_address, "--dtb_offset"),
+    ):
+        offset = image.offset_of(address)
+        if offset is None:
+            continue
+        lines.append(f"{variable} := {offset:#010x}")
+        args.append(f"{argument} $({variable})")
+    lines += [f"BOARD_MKBOOTIMG_ARGS += {argument}" for argument in args]
+    return "\n".join(lines)
+
+
 def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
     """Header fields only the boot image can answer.
 
@@ -167,6 +204,7 @@ def _boot_image_values(dump: AndroidDump) -> Dict[str, str]:
     page_size = boot.page_size if boot else 4096
     return {
         "kernel_cmdline_block": _cmdline_block(dump.kernel_cmdline),
+        "kernel_address_block": _kernel_address_block(dump),
         "boot_header_version": (
             str(boot.header_version)
             if boot

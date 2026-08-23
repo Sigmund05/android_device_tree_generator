@@ -91,8 +91,11 @@ above from `ro.product.cpu.abilist`, the board name and platform from `ro.board.
 shipping API level, screen density, security patch level, and the A/B, virtual A/B
 and dynamic-partition blocks from the matching boot properties.
 
-`BOARD_BOOT_HEADER_VERSION`, `BOARD_KERNEL_PAGESIZE` and `BOARD_KERNEL_CMDLINE` come
-from the image headers - no build.prop property carries them. `boot.img` and
+The kernel block - `BOARD_BOOT_HEADER_VERSION`, `BOARD_KERNEL_PAGESIZE`,
+`BOARD_KERNEL_CMDLINE`, `BOARD_KERNEL_BASE` and the mkbootimg offsets - comes from
+the image headers, parsed the way AOSP's `mkbootimg` writes and reads them
+(`bootimg.h` for the structs, `unpack_bootimg.py` for the decoding). No build.prop
+property carries any of it. `boot.img` and
 `vendor_boot.img` are looked for at the dump root and under `images/`, `IMAGES/`,
 `boot/` and `firmware/`; boot header v3 moved the cmdline into `vendor_boot`, so
 that copy wins when it has one. Values a dump cannot tell us (partition sizes, and

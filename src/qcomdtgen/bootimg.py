@@ -1,56 +1,72 @@
 """Reading the Android boot and vendor_boot image headers.
 
 Only the headers are parsed - they are the one place a dump states its boot
-header version and kernel cmdline, neither of which any build.prop property
-carries.  Handy detail of the boot format: ``header_version`` sits at offset 40
-in every version from v0 to v4, so the field can be read before knowing which
-layout follows it.
+header version, kernel cmdline and load addresses, none of which any
+build.prop property carries.
+
+Field layout and decoding follow AOSP's mkbootimg:
+``system/tools/mkbootimg/include/bootimg/bootimg.h`` for the packed structs
+and ``unpack_bootimg.py`` for how they are read back.  Handy detail of the
+boot format: ``header_version`` is the ninth uint32 after the magic in every
+version from v0 to v4, so it can be read before the layout is known.
 """
 
 from __future__ import annotations
 
 import os
+import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 BOOT_MAGIC = b"ANDROID!"
 VENDOR_BOOT_MAGIC = b"VNDRBOOT"
 
 _MAX_HEADER_VERSION = 4
-_DEFAULT_PAGE_SIZE = 4096
-#: Enough for either header, including vendor_boot's 2048 byte cmdline.
+#: v3 dropped the page size field: "all entities in the boot image are
+#: 4096-byte aligned in flash" (bootimg.h).
+_V3_PAGE_SIZE = 4096
+#: Enough for either header, including boot v2's trailing dtb fields.
 _HEADER_READ_SIZE = 4096
 
-# Offsets below follow the packed structs in AOSP's bootimg.h
-# (system/tools/mkbootimg/include/bootimg/bootimg.h).
-#
-# boot_img_hdr_v0 - v2, the fields up to extra_cmdline being identical:
-#     0 magic[8]        8 kernel_size     12 kernel_addr    16 ramdisk_size
-#    20 ramdisk_addr   24 second_size     28 second_addr    32 tags_addr
-#    36 page_size      40 header_version  44 os_version     48 name[16]
-#    64 cmdline[512]  576 id[8]          608 extra_cmdline[1024]
-# v1 and v2 only append fields after that, so nothing here moves.
-_BOOT_HEADER_VERSION_OFFSET = 40
-_BOOT_PAGE_SIZE_OFFSET = 36
-_BOOT_CMDLINE = (64, 512)  # BOOT_ARGS_SIZE
-_BOOT_EXTRA_CMDLINE = (608, 1024)  # BOOT_EXTRA_ARGS_SIZE
-#
-# boot_img_hdr_v3, which dropped page_size and merged the two cmdline fields:
-#     0 magic[8]        8 kernel_size     12 ramdisk_size   16 os_version
-#    20 header_size    24 reserved[4]     40 header_version 44 cmdline[1536]
-# v4 only appends signature_size.  header_version keeping offset 40 across
-# both layouts is what lets the version be read before the layout is known.
+#: mkbootimg's default --kernel_offset, i.e. kernel_addr - base.  Load
+#: addresses are stored absolute, so this is what turns them back into the
+#: base plus offsets a BoardConfig.mk is written with.
+KERNEL_OFFSET = 0x00008000
+
+# boot_img_hdr_v0 - v2: magic[8] then nine uint32, header_version last.
+_BOOT_HEAD = struct.Struct("<8s9I")
+# ... for v0 - v2 those nine are:
+_BOOT_V2_FIELDS = (
+    "kernel_size",
+    "kernel_address",
+    "ramdisk_size",
+    "ramdisk_address",
+    "second_size",
+    "second_address",
+    "tags_address",
+    "page_size",
+    "header_version",
+)
+# ... and for v3 - v4 only the first three and the last are used:
+_BOOT_V3_FIELDS = ("kernel_size", "ramdisk_size", "os_version_patch_level")
+_HEADER_VERSION_INDEX = 8
+
+# Trailing fields, all little endian and unaligned (the structs are packed).
+_BOOT_V2_OS_VERSION = 44
+_BOOT_V2_CMDLINE = (64, 512)  # BOOT_ARGS_SIZE
+_BOOT_V2_EXTRA_CMDLINE = (608, 1024)  # BOOT_EXTRA_ARGS_SIZE
+_BOOT_V1_RECOVERY_DTBO_SIZE = 1632
+_BOOT_V2_DTB = 1648  # uint32 dtb_size, then uint64 dtb_addr
 _BOOT_V3_CMDLINE = (44, 512 + 1024)
 
-# vendor_boot_img_hdr_v3:
-#     0 magic[8]        8 header_version  12 page_size      16 kernel_addr
-#    20 ramdisk_addr   24 vendor_ramdisk_size               28 cmdline[2048]
-#  2076 tags_addr    2080 name[16]      2096 header_size   2100 dtb_size
-# v4 only appends the ramdisk table and bootconfig sizes.
-_VENDOR_HEADER_VERSION_OFFSET = 8
-_VENDOR_PAGE_SIZE_OFFSET = 12
+# vendor_boot_img_hdr_v3: magic[8], header_version, page_size, kernel_addr,
+# ramdisk_addr, vendor_ramdisk_size, cmdline[2048], tags_addr, name[16],
+# header_size, dtb_size, dtb_addr.
+_VENDOR_HEAD = struct.Struct("<8s5I")
 _VENDOR_CMDLINE = (28, 2048)  # VENDOR_BOOT_ARGS_SIZE
+_VENDOR_TAIL = struct.Struct("<I16sIIQ")
+_VENDOR_TAIL_OFFSET = 2076
 
 #: Where dump tools leave the images, relative to the dump root.
 _IMAGE_DIRS: List[str] = ["", "images", "IMAGES", "boot", "firmware"]
@@ -58,30 +74,59 @@ _IMAGE_DIRS: List[str] = ["", "images", "IMAGES", "boot", "firmware"]
 
 @dataclass
 class BootImage:
-    """The handful of header fields a device tree needs."""
+    """The header fields of a boot or vendor_boot image."""
 
     path: Path
     kind: str
     header_version: int
     page_size: int
-    cmdline: str
+    cmdline: str = ""
+    #: "13.0.0" and "2023-08", decoded from the packed os_version field.
+    os_version: str = ""
+    os_patch_level: str = ""
+    #: Absolute load addresses; zero when the format does not carry them.
+    kernel_address: int = 0
+    ramdisk_address: int = 0
+    second_address: int = 0
+    tags_address: int = 0
+    dtb_address: int = 0
+    #: Section sizes, useful as "does this image have one at all" flags.
+    kernel_size: int = 0
+    ramdisk_size: int = 0
+    second_size: int = 0
+    dtb_size: int = 0
+    recovery_dtbo_size: int = 0
+
+    # -- derived -----------------------------------------------------------
+
+    @property
+    def has_load_addresses(self) -> bool:
+        """boot v3 dropped them; they live in vendor_boot from then on."""
+        return self.kernel_address != 0
+
+    @property
+    def base_address(self) -> Optional[int]:
+        """The BOARD_KERNEL_BASE the load addresses were built from."""
+        if not self.has_load_addresses:
+            return None
+        return self.kernel_address - KERNEL_OFFSET
+
+    def offset_of(self, address: int) -> Optional[int]:
+        """Turn an absolute load address back into an offset from the base."""
+        base = self.base_address
+        if base is None or address == 0:
+            return None
+        return address - base
 
     def describe(self) -> str:
-        return f"header v{self.header_version}, {self.page_size} byte pages"
-
-
-def _read_u32(header: bytes, offset: int) -> int:
-    return int.from_bytes(header[offset : offset + 4], "little")
-
-
-def _read_string(header: bytes, offset: int, size: int) -> str:
-    raw = header[offset : offset + size]
-    return raw.split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
-
-
-def _join_cmdline(*parts: str) -> str:
-    """Merge cmdline fields into one whitespace normalised string."""
-    return " ".join(" ".join(parts).split())
+        parts = [f"header v{self.header_version}", f"{self.page_size} byte pages"]
+        if self.os_version:
+            parts.append(f"Android {self.os_version}")
+        if self.os_patch_level:
+            parts.append(f"patch {self.os_patch_level}")
+        if self.base_address is not None:
+            parts.append(f"base {self.base_address:#010x}")
+        return ", ".join(parts)
 
 
 def find_image(dump_path: os.PathLike | str, name: str) -> Optional[Path]:
@@ -100,30 +145,17 @@ def read_boot_image(path: os.PathLike | str) -> Optional[BootImage]:
     header = _read_header(path)
     if header is None or not header.startswith(BOOT_MAGIC):
         return None
-    if len(header) < _BOOT_HEADER_VERSION_OFFSET + 4:
+    if len(header) < _BOOT_HEAD.size:
         return None
 
-    header_version = _read_u32(header, _BOOT_HEADER_VERSION_OFFSET)
+    values = _BOOT_HEAD.unpack_from(header)[1:]
+    header_version = values[_HEADER_VERSION_INDEX]
     if header_version > _MAX_HEADER_VERSION:
         return None
 
-    page_size = _DEFAULT_PAGE_SIZE
     if header_version < 3:
-        page_size = _page_size(_read_u32(header, _BOOT_PAGE_SIZE_OFFSET))
-        cmdline = _join_cmdline(
-            _read_string(header, *_BOOT_CMDLINE),
-            _read_string(header, *_BOOT_EXTRA_CMDLINE),
-        )
-    else:
-        cmdline = _join_cmdline(_read_string(header, *_BOOT_V3_CMDLINE))
-
-    return BootImage(
-        path=path,
-        kind="boot",
-        header_version=header_version,
-        page_size=page_size,
-        cmdline=cmdline,
-    )
+        return _boot_image_v2(path, header, header_version, values)
+    return _boot_image_v3(path, header, header_version, values)
 
 
 def read_vendor_boot_image(path: os.PathLike | str) -> Optional[BootImage]:
@@ -132,19 +164,29 @@ def read_vendor_boot_image(path: os.PathLike | str) -> Optional[BootImage]:
     header = _read_header(path)
     if header is None or not header.startswith(VENDOR_BOOT_MAGIC):
         return None
-    if len(header) < sum(_VENDOR_CMDLINE):
+    if len(header) < _VENDOR_TAIL_OFFSET + _VENDOR_TAIL.size:
         return None
 
-    header_version = _read_u32(header, _VENDOR_HEADER_VERSION_OFFSET)
+    _, header_version, page_size, kernel_address, ramdisk_address, _ = (
+        _VENDOR_HEAD.unpack_from(header)
+    )
     if not 3 <= header_version <= _MAX_HEADER_VERSION:
         return None
+    tags_address, _name, _header_size, dtb_size, dtb_address = _VENDOR_TAIL.unpack_from(
+        header, _VENDOR_TAIL_OFFSET
+    )
 
     return BootImage(
         path=path,
         kind="vendor_boot",
         header_version=header_version,
-        page_size=_page_size(_read_u32(header, _VENDOR_PAGE_SIZE_OFFSET)),
-        cmdline=_join_cmdline(_read_string(header, *_VENDOR_CMDLINE)),
+        page_size=_page_size(page_size),
+        cmdline=_cstr(header, *_VENDOR_CMDLINE),
+        kernel_address=kernel_address,
+        ramdisk_address=ramdisk_address,
+        tags_address=tags_address,
+        dtb_address=dtb_address,
+        dtb_size=dtb_size,
     )
 
 
@@ -160,6 +202,92 @@ def load_vendor_boot_image(dump_path: os.PathLike | str) -> Optional[BootImage]:
     return read_vendor_boot_image(path) if path is not None else None
 
 
+# -- boot image layouts ----------------------------------------------------
+
+
+def _boot_image_v2(
+    path: Path, header: bytes, header_version: int, values: Tuple[int, ...]
+) -> BootImage:
+    fields = dict(zip(_BOOT_V2_FIELDS, values))
+    image = BootImage(
+        path=path,
+        kind="boot",
+        header_version=header_version,
+        page_size=_page_size(fields["page_size"]),
+        cmdline=_join(
+            _cstr(header, *_BOOT_V2_CMDLINE), _cstr(header, *_BOOT_V2_EXTRA_CMDLINE)
+        ),
+        kernel_address=fields["kernel_address"],
+        ramdisk_address=fields["ramdisk_address"],
+        second_address=fields["second_address"],
+        tags_address=fields["tags_address"],
+        kernel_size=fields["kernel_size"],
+        ramdisk_size=fields["ramdisk_size"],
+        second_size=fields["second_size"],
+    )
+    _set_os_version(image, _u32(header, _BOOT_V2_OS_VERSION))
+    if header_version >= 1:
+        image.recovery_dtbo_size = _u32(header, _BOOT_V1_RECOVERY_DTBO_SIZE)
+    if header_version == 2 and len(header) >= _BOOT_V2_DTB + 12:
+        image.dtb_size = _u32(header, _BOOT_V2_DTB)
+        image.dtb_address = int.from_bytes(
+            header[_BOOT_V2_DTB + 4 : _BOOT_V2_DTB + 12], "little"
+        )
+    return image
+
+
+def _boot_image_v3(
+    path: Path, header: bytes, header_version: int, values: Tuple[int, ...]
+) -> BootImage:
+    fields = dict(zip(_BOOT_V3_FIELDS, values))
+    image = BootImage(
+        path=path,
+        kind="boot",
+        header_version=header_version,
+        page_size=_V3_PAGE_SIZE,
+        cmdline=_join(_cstr(header, *_BOOT_V3_CMDLINE)),
+        kernel_size=fields["kernel_size"],
+        ramdisk_size=fields["ramdisk_size"],
+    )
+    _set_os_version(image, fields["os_version_patch_level"])
+    return image
+
+
+# -- field decoding --------------------------------------------------------
+
+
+def _set_os_version(image: BootImage, packed: int) -> None:
+    """Split the packed os_version field, as unpack_bootimg.py does.
+
+    ``os_version = A[31:25] B[24:18] C[17:11] (Y-2000)[10:4] M[3:0]``
+    """
+    version, patch_level = packed >> 11, packed & ((1 << 11) - 1)
+    if version:
+        image.os_version = ".".join(
+            str(part)
+            for part in (version >> 14, (version >> 7) & 0x7F, version & 0x7F)
+        )
+    if patch_level:
+        image.os_patch_level = f"{2000 + (patch_level >> 4):04}-{patch_level & 0xF:02}"
+
+
+def _cstr(header: bytes, offset: int, size: int) -> str:
+    """A NUL terminated ascii field."""
+    raw = header[offset : offset + size]
+    return raw.split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
+
+
+def _join(*parts: str) -> str:
+    """Merge cmdline fields into one whitespace normalised string."""
+    return " ".join(" ".join(parts).split())
+
+
+def _u32(header: bytes, offset: int) -> int:
+    if len(header) < offset + 4:
+        return 0
+    return int.from_bytes(header[offset : offset + 4], "little")
+
+
 def _read_header(path: Path) -> Optional[bytes]:
     try:
         with path.open("rb") as image:
@@ -172,4 +300,4 @@ def _page_size(declared: int) -> int:
     """Real images use a power of two between 2K and 64K; ignore junk."""
     if 2048 <= declared <= 65536 and declared & (declared - 1) == 0:
         return declared
-    return _DEFAULT_PAGE_SIZE
+    return _V3_PAGE_SIZE
