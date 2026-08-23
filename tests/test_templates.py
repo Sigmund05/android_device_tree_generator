@@ -91,7 +91,7 @@ def test_lineage_dependencies_is_valid_json(context):
 
 LICENSE = """\
 #
-# Copyright (C) The LineageOS Project
+# SPDX-FileCopyrightText: The LineageOS Project
 # SPDX-License-Identifier: Apache-2.0
 #"""
 

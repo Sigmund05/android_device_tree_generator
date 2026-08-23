@@ -77,7 +77,7 @@ and injected as `{{license}}` (translated to `//` comments for `Android.bp`):
 
 ```
 #
-# Copyright (C) The LineageOS Project
+# SPDX-FileCopyrightText: The LineageOS Project
 # SPDX-License-Identifier: Apache-2.0
 #
 ```
