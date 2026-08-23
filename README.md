@@ -20,9 +20,9 @@ qcomdtgen [-h] [-o DIR] [-p | -P] [-f] [-q] [-V] dump
 | Argument | Meaning |
 | --- | --- |
 | `dump` | Path to the extracted dump — the directory holding `system/`, `vendor/`, `product/`, … |
-| `-o`, `--output DIR` | Output root; the tree is written to `<DIR>/<vendor>/<device>` (default: `output/`) |
-| `-p`, `--proprietary-files` | Generate `proprietary-files.txt` (default) |
-| `-P`, `--no-proprietary-files` | Skip the blob list |
+| `-o`, `--output ANDROID_TOP` | Root of the Android source tree; the tree is written to `<ANDROID_TOP>/device/<manufacturer>/<device>` (default: the current directory) |
+| `-p`, `--proprietary-files` | Generate `proprietary-files.txt` plus `extract-files.py` / `setup-makefiles.py` (default) |
+| `-P`, `--no-proprietary-files` | Skip the blob list and the extract scripts |
 | `-f`, `--force` | Overwrite a non-empty output directory |
 | `-q`, `--quiet` | Only report errors |
 | `-V`, `--version` | Print the version |
@@ -30,8 +30,8 @@ qcomdtgen [-h] [-o DIR] [-p | -P] [-f] [-q] [-V] dump
 Example:
 
 ```bash
-qcomdtgen ~/dumps/venus -o ~/android/lineage/device
-# -> ~/android/lineage/device/xiaomi/venus/proprietary-files.txt
+qcomdtgen ~/dumps/venus -o ~/android/lineage
+# -> ~/android/lineage/device/xiaomi/venus/
 ```
 
 The dump is inspected first and the detected device is printed:
@@ -58,6 +58,31 @@ Every partition (`system`, `system_ext`, `product`, `vendor`, `odm`, `vendor_dlk
 and a plain `super.img` unpack work. Properties are read from each partition's
 `build.prop` or `etc/build.prop`.
 
+## Generated files
+
+| File | When |
+| --- | --- |
+| `Android.bp` | always |
+| `AndroidProducts.mk` | always |
+| `BoardConfig.mk` | always |
+| `device.mk` | always |
+| `lineage_<device>.mk` | always |
+| `lineage.dependencies` | always |
+| `proprietary-files.txt` | with `--proprietary-files` |
+| `extract-files.py` | with `--proprietary-files`, mode `0755` |
+| `setup-makefiles.py` | with `--proprietary-files`, mode `0755` |
+
+The makefiles are filled in from the dump's properties: architecture and ABIs from
+`ro.product.cpu.abilist`, the board name and platform from `ro.board.platform`, the
+shipping API level, screen density, security patch level, and the A/B, virtual A/B
+and dynamic-partition blocks from the matching boot properties. Values a dump cannot
+tell us (kernel cmdline, partition sizes) are emitted with a `TODO` marker.
+
+`extract-files.py` targets the current python `extract-utils`
+(`ExtractUtilsModule` / `ExtractUtils.device`), and `setup-makefiles.py` is the
+one-line shebang that re-runs it with `--regenerate_makefiles` - which is why both
+are written executable.
+
 ## proprietary-files.txt
 
 Blobs are listed in `extract-utils` format: paths relative to the partition root,
@@ -70,11 +95,14 @@ built from source.
 
 ```
 src/qcomdtgen/
-  cli.py           argument parsing and process exit codes
-  generator.py     orchestration, output directory handling
-  dump.py          partition discovery and build.prop parsing
-  proprietary.py   blob scanning and proprietary-files.txt rendering
-  errors.py        exception types
+  cli.py               argument parsing and process exit codes
+  generator.py         orchestration, output directory handling
+  dump.py              partition discovery and build.prop parsing
+  proprietary.py       blob scanning and proprietary-files.txt rendering
+  context.py           dump properties -> template placeholders
+  templates_engine.py  template loading and {{placeholder}} rendering
+  templates/           the device tree templates themselves
+  errors.py            exception types
 tests/
 ```
 

@@ -10,7 +10,8 @@ from typing import List, Optional, Sequence
 from qcomdtgen import __version__
 from qcomdtgen.errors import QcomDtGenError
 from qcomdtgen.generator import (
-    DEFAULT_OUTPUT_ROOT,
+    DEFAULT_ANDROID_TOP,
+    DEVICE_SUBDIR,
     DeviceTreeGenerator,
     GeneratorOptions,
 )
@@ -23,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog=PROG,
         description="Generate a LineageOS device tree from an extracted Android dump.",
         epilog=(
-            "example: qcomdtgen ~/dumps/lahaina -o ~/android/lineage/device "
+            "example: qcomdtgen ~/dumps/lahaina -o ~/android/lineage "
             "--proprietary-files"
         ),
     )
@@ -37,10 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        default=DEFAULT_OUTPUT_ROOT,
-        metavar="DIR",
-        help="directory the tree is written to, as <DIR>/<vendor>/<device> "
-        f"(default: {DEFAULT_OUTPUT_ROOT}/)",
+        default=DEFAULT_ANDROID_TOP,
+        metavar="ANDROID_TOP",
+        help="root of the Android source tree; the device tree is written to "
+        f"<ANDROID_TOP>/{DEVICE_SUBDIR}/<manufacturer>/<device> "
+        "(default: the current directory)",
     )
 
     blobs = parser.add_mutually_exclusive_group()
@@ -105,7 +107,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     options = GeneratorOptions(
         dump_path=args.dump,
-        output_root=args.output,
+        android_top=args.output,
         proprietary_files=args.proprietary_files,
         force=args.force,
     )

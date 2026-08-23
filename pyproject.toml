@@ -32,5 +32,8 @@ Homepage = "https://github.com/Sigmund05/android_device_tree_generator"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+qcomdtgen = ["templates/*.tmpl"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

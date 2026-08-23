@@ -1,0 +1,69 @@
+import pytest
+
+from qcomdtgen.context import build_context
+from qcomdtgen.dump import AndroidDump
+from qcomdtgen.errors import QcomDtGenError
+from qcomdtgen.templates_engine import BASE_TEMPLATES, BLOB_TEMPLATES, render
+
+
+@pytest.fixture
+def context(dump_dir):
+    return build_context(AndroidDump(dump_dir))
+
+
+def test_every_template_renders(context):
+    for template in list(BASE_TEMPLATES) + list(BLOB_TEMPLATES):
+        rendered = render(template, context)
+        assert "{{" not in rendered
+        assert rendered.endswith("\n")
+
+
+def test_board_config(context):
+    rendered = render("BoardConfig.mk", context)
+    assert "DEVICE_PATH := device/xiaomi/venus" in rendered
+    assert "TARGET_BOARD_PLATFORM := lahaina" in rendered
+    assert "TARGET_CPU_ABI := arm64-v8a" in rendered
+    assert "TARGET_2ND_CPU_ABI := armeabi-v7a" in rendered
+    assert "include vendor/xiaomi/venus/BoardConfigVendor.mk" in rendered
+
+
+def test_product_makefiles(context):
+    products = render("AndroidProducts.mk", context)
+    assert "$(LOCAL_DIR)/lineage_venus.mk" in products
+    assert "lineage_venus-userdebug" in products
+
+    device_mk = render("lineage_device.mk", context)
+    assert "PRODUCT_NAME := lineage_venus" in device_mk
+    assert "PRODUCT_MANUFACTURER := Xiaomi" in device_mk
+    assert "PRODUCT_MODEL := Mi 11" in device_mk
+
+
+def test_extract_files_uses_device_and_vendor(context):
+    rendered = render("extract-files.py", context)
+    assert "'venus'," in rendered
+    assert "'xiaomi'," in rendered
+    assert rendered.startswith("#!/usr/bin/env -S PYTHONPATH=")
+
+
+def test_setup_makefiles_is_a_shebang_to_extract_files(context):
+    assert render("setup-makefiles.py", context).strip() == (
+        "#!./extract-files.py --regenerate_makefiles"
+    )
+
+
+def test_blocks_are_dropped_without_blobs(dump_dir):
+    context = build_context(AndroidDump(dump_dir), with_blobs=False)
+    assert "BoardConfigVendor.mk" not in render("BoardConfig.mk", context)
+    assert "venus-vendor.mk" not in render("device.mk", context)
+
+
+def test_unknown_placeholder_is_an_error(context):
+    partial = {key: value for key, value in context.items() if key != "device"}
+    with pytest.raises(QcomDtGenError):
+        render("AndroidProducts.mk", partial)
+
+
+def test_lineage_dependencies_is_valid_json(context):
+    import json
+
+    assert json.loads(render("lineage.dependencies", context)) == []

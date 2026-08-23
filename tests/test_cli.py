@@ -1,4 +1,4 @@
-import pytest
+import os
 
 from qcomdtgen.cli import build_parser, main
 
@@ -18,7 +18,7 @@ def test_no_proprietary_files_flag(dump_dir):
 def test_run_writes_proprietary_files(dump_dir, tmp_path, capsys):
     out = tmp_path / "out"
     assert main([str(dump_dir), "-o", str(out)]) == 0
-    generated = out / "xiaomi" / "venus" / "proprietary-files.txt"
+    generated = out / "device" / "xiaomi" / "venus" / "proprietary-files.txt"
     assert generated.is_file()
     assert "vendor/lib64/hw/camera.qcom.so" in generated.read_text()
     assert "venus" in capsys.readouterr().out
@@ -27,7 +27,7 @@ def test_run_writes_proprietary_files(dump_dir, tmp_path, capsys):
 def test_run_without_proprietary_files(dump_dir, tmp_path):
     out = tmp_path / "out"
     assert main([str(dump_dir), "-o", str(out), "-P"]) == 0
-    assert not (out / "xiaomi" / "venus" / "proprietary-files.txt").exists()
+    assert not (out / "device" / "xiaomi" / "venus" / "proprietary-files.txt").exists()
 
 
 def test_non_empty_output_needs_force(dump_dir, tmp_path, capsys):
@@ -46,3 +46,39 @@ def test_bad_dump_returns_error(tmp_path, capsys):
 def test_quiet(dump_dir, tmp_path, capsys):
     assert main([str(dump_dir), "-o", str(tmp_path / "out"), "-q"]) == 0
     assert capsys.readouterr().out == ""
+
+
+def test_device_tree_layout(dump_dir, tmp_path):
+    out = tmp_path / "android"
+    assert main([str(dump_dir), "-o", str(out)]) == 0
+    tree = out / "device" / "xiaomi" / "venus"
+    assert sorted(p.name for p in tree.iterdir()) == [
+        "Android.bp",
+        "AndroidProducts.mk",
+        "BoardConfig.mk",
+        "device.mk",
+        "extract-files.py",
+        "lineage.dependencies",
+        "lineage_venus.mk",
+        "proprietary-files.txt",
+        "setup-makefiles.py",
+    ]
+
+
+def test_blob_scripts_are_executable(dump_dir, tmp_path):
+    out = tmp_path / "android"
+    main([str(dump_dir), "-o", str(out)])
+    tree = out / "device" / "xiaomi" / "venus"
+    for name in ("extract-files.py", "setup-makefiles.py"):
+        assert os.access(tree / name, os.X_OK), name
+
+
+def test_blob_scripts_skipped_without_proprietary_files(dump_dir, tmp_path):
+    out = tmp_path / "android"
+    main([str(dump_dir), "-o", str(out), "-P"])
+    tree = out / "device" / "xiaomi" / "venus"
+    assert not (tree / "extract-files.py").exists()
+    assert not (tree / "setup-makefiles.py").exists()
+    # the base templates are still generated
+    assert (tree / "BoardConfig.mk").is_file()
+    assert "BoardConfigVendor.mk" not in (tree / "BoardConfig.mk").read_text()
