@@ -50,7 +50,9 @@ _BUILD_PROP_NAMES: List[str] = ["build.prop", "etc/build.prop"]
 #: Anything outside this set is folded away: these names become directories in
 #: the Android tree and parts of make variable names, and "TCL Communication
 #: Ltd." must not turn into a path ending in a dot or BOARD_...LTD._SIZE.
-_UNSAFE_NAME_CHARS = re.compile(r"[^a-z0-9_]+")
+#: Case is left alone - a codename such as M06 is spelled the way the device
+#: spells it - and only the manufacturer directory is lowercased on top.
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_]+")
 
 #: What the derived properties report when a dump does not say.
 UNKNOWN = "unknown"
@@ -83,7 +85,7 @@ QCOM_BOARD_PLATFORMS = frozenset(
 
 def sanitize_name(name: str, default: str = UNKNOWN) -> str:
     """Fold a property value into something usable as a directory name."""
-    cleaned = _UNSAFE_NAME_CHARS.sub("_", name.lower()).strip("_")
+    cleaned = _UNSAFE_NAME_CHARS.sub("_", name).strip("_")
     return cleaned or default
 
 
@@ -267,7 +269,7 @@ class AndroidDump:
 
     @property
     def device(self) -> str:
-        """The codename, as the tree directory and PRODUCT_DEVICE spell it."""
+        """The codename, kept exactly as the device spells it."""
         codename = self.get_product_prop("device") or self.get_prop("ro.build.product")
         return sanitize_name(codename)
 
@@ -291,7 +293,7 @@ class AndroidDump:
     @property
     def manufacturer_dir(self) -> str:
         """Manufacturer as the device tree spells it: lowercase, no spaces."""
-        return sanitize_name(self.manufacturer)
+        return sanitize_name(self.manufacturer).lower()
 
     @property
     def platform(self) -> str:

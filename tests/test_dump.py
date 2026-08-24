@@ -103,7 +103,21 @@ def test_manufacturer_punctuation_is_folded_away(tmp_path):
     assert AndroidDump(root).manufacturer_dir == "tcl_communication_ltd"
 
 
-def test_device_codename_is_sanitized(tmp_path):
+def test_device_codename_keeps_its_case(tmp_path):
+    root = tmp_path / "dump"
+    (root / "system" / "etc").mkdir(parents=True)
+    (root / "system" / "build.prop").write_text(
+        "ro.product.device=M06\n"
+        "ro.product.manufacturer=FCNT\n"
+        "ro.product.cpu.abilist=arm64-v8a\n"
+    )
+    dump = AndroidDump(root)
+    assert dump.device == "M06"
+    # only the manufacturer directory is lowercased
+    assert dump.manufacturer_dir == "fcnt"
+
+
+def test_device_codename_cannot_escape_the_tree(tmp_path):
     root = tmp_path / "dump"
     (root / "system" / "etc").mkdir(parents=True)
     (root / "system" / "build.prop").write_text(
