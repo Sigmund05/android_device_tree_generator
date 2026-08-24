@@ -34,12 +34,17 @@ qcomdtgen ~/dumps/venus -o ~/android/lineage
 # -> ~/android/lineage/device/xiaomi/venus/
 ```
 
-Only the platforms LineageOS supports are accepted - the `QCOM_BOARD_PLATFORMS`
-list in `hardware/qcom-caf/common/qcom_boards.mk` (23 of them, `msm8937` through
-`sun`). Every entry is a Qualcomm platform, so a dump naming anything else is
-another vendor's SoC and is refused before a single file is written. Note these
-are platform code names rather than SoC part numbers: an SM8450 device reports
-`taro`. A dump that names no platform at all is generated with a warning.
+Only the platforms LineageOS supports are accepted: the `QCOM_BOARD_PLATFORMS`
+list in `hardware/qcom-caf/common/qcom_boards.mk`, from UM 4.14 on. That is 16
+platforms - `msmnile`, `sm6150`, `trinket`, `atoll`, `kona`, `lito`, `bengal`,
+`lahaina`, `holi`, `taro`, `parrot`, `kalama`, `crow`, `pineapple`, `volcano`,
+`sun` - and the older UM 3.18, 4.4 and 4.9 families are left out as legacy.
+
+Every entry is a Qualcomm platform, so a dump naming anything else is another
+vendor's SoC and is refused before a single file is written. The check reads
+`ro.board.platform` and nothing else: the SoC properties carry part numbers
+rather than platform code names, and an SM8450 device says `taro` here. A dump
+that names no platform at all is generated with a warning.
 
 The dump is inspected first and the detected device is printed:
 

@@ -124,23 +124,21 @@ def _platform_dump(tmp_path, platform):
 
 @pytest.mark.parametrize(
     "platform",
-    ["lahaina", "taro", "sun", "msm8998", "LAHAINA"],  # the case must not matter
+    ["msmnile", "kona", "lahaina", "parrot", "sun", "LAHAINA"],  # case must not matter
 )
 def test_supported_platforms_come_from_qcom_caf_common(tmp_path, platform):
     assert AndroidDump(_platform_dump(tmp_path, platform)).is_supported_platform
 
 
-@pytest.mark.parametrize(
-    "platform",
-    [
-        "sm8450",  # a SoC part number, not a platform name: such a device says taro
-        "smdk4210",  # an old Exynos board
-        "mt6893",
-        "exynos2200",
-        "ums512",
-    ],
-)
-def test_another_vendors_soc_is_refused(tmp_path, platform):
+@pytest.mark.parametrize("platform", ["mt6893", "exynos2200", "ums512", "sm8450"])
+def test_a_platform_off_the_list_is_refused(tmp_path, platform):
+    with pytest.raises(DumpError, match="unsupported platform"):
+        AndroidDump(_platform_dump(tmp_path, platform))
+
+
+@pytest.mark.parametrize("platform", ["msm8996", "msm8998", "sdm660", "sdm845"])
+def test_legacy_platforms_are_refused(tmp_path, platform):
+    """Everything before UM 4.14 is out of scope."""
     with pytest.raises(DumpError, match="unsupported platform"):
         AndroidDump(_platform_dump(tmp_path, platform))
 
@@ -157,14 +155,19 @@ def test_a_dump_naming_no_platform_is_still_read(tmp_path):
     assert not dump.is_supported_platform
 
 
-def test_the_platform_list_matches_qcom_boards_mk():
-    """23 platforms, as listed in qcom_boards.mk on lineage-23.2."""
+def test_the_platform_list_is_qcom_boards_mk_from_um_4_14():
+    """The 16 UM 4.14+ entries of qcom_boards.mk on lineage-23.2."""
     from qcomdtgen.dump import QCOM_BOARD_PLATFORMS
 
-    assert len(QCOM_BOARD_PLATFORMS) == 23
-    assert {"msm8996", "kona", "lahaina", "taro", "kalama", "pineapple", "sun"} <= (
-        QCOM_BOARD_PLATFORMS
-    )
+    assert QCOM_BOARD_PLATFORMS == {
+        "msmnile", "sm6150", "trinket", "atoll",
+        "kona", "lito", "bengal",
+        "lahaina", "holi",
+        "taro", "parrot",
+        "kalama", "crow",
+        "pineapple", "volcano",
+        "sun",
+    }  # fmt: skip
 
 
 def test_system_wins_over_vendor_for_product_props(tmp_path):

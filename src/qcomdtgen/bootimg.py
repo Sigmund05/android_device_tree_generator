@@ -90,11 +90,8 @@ class BootImage:
     second_address: int = 0
     tags_address: int = 0
     dtb_address: int = 0
-    #: Section sizes, useful as "does this image have one at all" flags.
-    kernel_size: int = 0
-    ramdisk_size: int = 0
-    second_size: int = 0
-    dtb_size: int = 0
+    #: Only the recovery dtbo size is read back: it decides whether the tree
+    #: sets BOARD_INCLUDE_RECOVERY_DTBO.
     recovery_dtbo_size: int = 0
 
     # -- derived -----------------------------------------------------------
@@ -177,8 +174,8 @@ def read_vendor_boot_image(path: os.PathLike | str) -> Optional[BootImage]:
     )
     if not 3 <= header_version <= _MAX_HEADER_VERSION:
         return None
-    tags_address, _name, _header_size, dtb_size, dtb_address = _VENDOR_TAIL.unpack_from(
-        header, _VENDOR_TAIL_OFFSET
+    tags_address, _name, _header_size, _dtb_size, dtb_address = (
+        _VENDOR_TAIL.unpack_from(header, _VENDOR_TAIL_OFFSET)
     )
 
     return BootImage(
@@ -191,7 +188,6 @@ def read_vendor_boot_image(path: os.PathLike | str) -> Optional[BootImage]:
         ramdisk_address=ramdisk_address,
         tags_address=tags_address,
         dtb_address=dtb_address,
-        dtb_size=dtb_size,
     )
 
 
@@ -226,15 +222,12 @@ def _boot_image_v2(
         ramdisk_address=fields["ramdisk_address"],
         second_address=fields["second_address"],
         tags_address=fields["tags_address"],
-        kernel_size=fields["kernel_size"],
-        ramdisk_size=fields["ramdisk_size"],
-        second_size=fields["second_size"],
     )
     _set_os_version(image, _u32(header, _BOOT_V2_OS_VERSION))
     if header_version >= 1:
         image.recovery_dtbo_size = _u32(header, _BOOT_V1_RECOVERY_DTBO_SIZE)
     if header_version == 2 and len(header) >= _BOOT_V2_DTB + 12:
-        image.dtb_size = _u32(header, _BOOT_V2_DTB)
+        # dtb_size is followed by the uint64 dtb_addr
         image.dtb_address = int.from_bytes(
             header[_BOOT_V2_DTB + 4 : _BOOT_V2_DTB + 12], "little"
         )
@@ -251,8 +244,6 @@ def _boot_image_v3(
         header_version=header_version,
         page_size=_V3_PAGE_SIZE,
         cmdline=_join(_cstr(header, *_BOOT_V3_CMDLINE)),
-        kernel_size=fields["kernel_size"],
-        ramdisk_size=fields["ramdisk_size"],
     )
     _set_os_version(image, fields["os_version_patch_level"])
     return image

@@ -55,18 +55,14 @@ _UNSAFE_NAME_CHARS = re.compile(r"[^a-z0-9_]+")
 #: What the derived properties report when a dump does not say.
 UNKNOWN = "unknown"
 
-#: Every TARGET_BOARD_PLATFORM LineageOS supports, from the QCOM_BOARD_PLATFORMS
-#: list in hardware/qcom-caf/common/qcom_boards.mk (lineage-23.2), grouped by
-#: the UM kernel family it belongs to there.  Note these are the platform code
-#: names, not the SoC part numbers: an SM8450 device says "taro".
+#: Every TARGET_BOARD_PLATFORM this tool supports: the QCOM_BOARD_PLATFORMS list
+#: in hardware/qcom-caf/common/qcom_boards.mk (lineage-23.2), from UM 4.14 on.
+#: The older families there - UM 3.18 (msm8937, msm8953, msm8996), UM 4.4
+#: (msm8998, sdm660) and UM 4.9 (sdm710, sdm845) - are legacy and left out.
+#:
+#: These are platform code names, not SoC part numbers: an SM8450 says "taro".
 QCOM_BOARD_PLATFORMS = frozenset(
     {
-        # UM 3.18
-        "msm8937", "msm8953", "msm8996",
-        # UM 4.4
-        "msm8998", "sdm660",
-        # UM 4.9
-        "sdm710", "sdm845",
         # UM 4.14
         "msmnile", "sm6150", "trinket", "atoll",
         # UM 4.19
@@ -228,8 +224,8 @@ class AndroidDump:
             return
         raise DumpError(
             f"unsupported platform {self.platform!r}: qcomdtgen only handles the "
-            f"{len(QCOM_BOARD_PLATFORMS)} Qualcomm platforms "
-            "hardware/qcom-caf/common supports"
+            f"{len(QCOM_BOARD_PLATFORMS)} UM 4.14 and newer Qualcomm platforms "
+            "of hardware/qcom-caf/common"
         )
 
     # -- property access ---------------------------------------------------
@@ -299,16 +295,17 @@ class AndroidDump:
 
     @property
     def platform(self) -> str:
-        return self.get_prop(
-            "ro.board.platform",
-            "ro.vendor.qti.soc_name",
-            "ro.soc.model",
-            default=UNKNOWN,
-        )
+        """TARGET_BOARD_PLATFORM, which only ro.board.platform states.
+
+        The SoC properties (ro.soc.model, ro.vendor.qti.soc_name) carry part
+        numbers rather than platform code names, so they cannot stand in: the
+        FCNT M06 says parrot here and does not set either of them.
+        """
+        return self.get_prop("ro.board.platform", default=UNKNOWN)
 
     @property
     def is_supported_platform(self) -> bool:
-        """Whether TARGET_BOARD_PLATFORM is one qcom-caf/common knows."""
+        """Whether TARGET_BOARD_PLATFORM is one of the supported platforms."""
         return self.platform.lower() in QCOM_BOARD_PLATFORMS
 
     @property
