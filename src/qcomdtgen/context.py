@@ -99,7 +99,7 @@ def _ota_block(dump: AndroidDump) -> str:
 
 def _partition_block(dump: AndroidDump) -> str:
     """Dynamic partition scaffolding; sizes cannot be read from a dump."""
-    if not _bool_prop(dump, "ro.boot.dynamic_partitions", "ro.build.dynamic_partitions"):
+    if not _bool_prop(dump, "ro.boot.dynamic_partitions"):
         return ""
     groups = [name for name in ("system", "system_ext", "product", "vendor", "odm") if name in dump.partitions]
     lines = [
@@ -212,12 +212,7 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
     api_level = dump.api_level
     shipping_api = _int_prop(dump, "ro.product.first_api_level") or api_level
     # The vendor image's own API level, which can lag the system one.
-    board_api = _int_prop(
-        dump,
-        "ro.board.first_api_level",
-        "ro.board.api_level",
-        "ro.vendor.build.version.sdk",
-    )
+    board_api = _int_prop(dump, "ro.board.first_api_level", "ro.board.api_level")
 
     context: Dict[str, str] = {
         "device": device,
@@ -247,11 +242,7 @@ def build_context(dump: AndroidDump, with_blobs: bool = True) -> Dict[str, str]:
         "build_fingerprint": dump.fingerprint,
         "system_name": dump.get_product_prop("name", default=device),
         "device_product": dump.get_product_prop("device", default=device),
-        "vendor_security_patch": dump.get_prop(
-            "ro.vendor.build.security_patch",
-            "ro.build.version.security_patch",
-            default="",
-        ),
+        "vendor_security_patch": dump.get_prop("ro.vendor.build.security_patch"),
         # optional blocks
         "ota_block": _ota_block(dump),
         "partition_block": _partition_block(dump),
